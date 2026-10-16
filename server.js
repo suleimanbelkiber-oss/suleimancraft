@@ -2,20 +2,20 @@
  * SuleimanCraft — 3D online sandbox server.
  * Node.js + ws
  * Author: Suleiman
- * Version: 6.0.0
- * Without Nether / without Netherite / without Obsidian.
+ * Version: 8.0.0 (100 players, optimized)
  */
 
 const WebSocket = require('ws');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { filterBadWords } = require('./badwords');
 
 const PORT = process.env.PORT || 3001;
-const VERSION = '6.0.0';
+const VERSION = '8.0.0';
 const GAME_NAME = 'SuleimanCraft';
 const WORLD_SIZE = 16;
-const MAX_PLAYERS = 30;
+const MAX_PLAYERS = 100;
 const MAX_CHAT_HISTORY = 50;
 const PLAYER_MAX_HP = 20;
 const PLAYER_MAX_FOOD = 20;
@@ -25,10 +25,15 @@ const ATTACK_COOLDOWN = 500;
 const FOOD_DECAY_INTERVAL = 30000;
 const PLAYER_INVENTORY_SIZE = 27;
 
-// ═══════════════════════════════════════════════════════════════
-//  CHAT
-// ═══════════════════════════════════════════════════════════════
+// ═══ ОПТИМИЗАЦИЯ ═══
+const RATE_LIMIT = 20;              // сообщений/сек
+const RATE_WINDOW = 1000;           // мс
+const BROADCAST_INTERVAL = 50;      // мс
+const NEARBY_RADIUS = 64;           // блоков для broadcast
+const NEARBY_RADIUS_SQ = NEARBY_RADIUS * NEARBY_RADIUS;
+const MOVE_NETWORK_RATE = 3;        // сообщений/сек от клиента
 
+// ═══ CHAT ═══
 let chatHistory = [];
 function addChatMessage(name, text) {
   const msg = { name, text, timestamp: Date.now() };
@@ -37,10 +42,7 @@ function addChatMessage(name, text) {
   return msg;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  BLOCKS
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ BLOCKS ═══
 const BLOCK_TYPES = {
   GRASS: 0, DIRT: 1, STONE: 2, WOOD: 3, LEAVES: 4,
   SAND: 5, WATER: 6, BRICK: 7, GLASS: 8, GOLD: 9,
@@ -64,10 +66,7 @@ const BLOCK_INFO = {
   13: { name: 'Алмазная руда', color: 0x4AEDD9 },
 };
 
-// ═══════════════════════════════════════════════════════════════
-//  WEAPONS (без незерита)
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ WEAPONS ═══
 const WEAPON_INFO = {
   0: { name: 'Деревянный меч', color: 0x8B6F47, damage: 2 },
   1: { name: 'Каменный меч', color: 0x808080, damage: 3 },
@@ -76,23 +75,16 @@ const WEAPON_INFO = {
   4: { name: 'Алмазный меч', color: 0x4AEDD9, damage: 5 },
 };
 
-// ═══════════════════════════════════════════════════════════════
-//  ARMOR (без незерита)
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ ARMOR ═══
 const ARMOR_INFO = {
   0: { name: 'Кожаная', color: 0x8B6F47, defense: 1 },
   1: { name: 'Железная', color: 0xC0C0C0, defense: 2 },
   2: { name: 'Золотая', color: 0xFFD700, defense: 2 },
   3: { name: 'Алмазная', color: 0x4AEDD9, defense: 3 },
 };
-
 const ARMOR_SLOTS = ['helmet', 'chestplate', 'leggings', 'boots'];
 
-// ═══════════════════════════════════════════════════════════════
-//  FOOD
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ FOOD ═══
 const FOOD_INFO = {
   0: { name: 'Яблоко', color: 0xFF4040, heal: 4 },
   1: { name: 'Хлеб', color: 0xD2A24A, heal: 5 },
@@ -100,10 +92,7 @@ const FOOD_INFO = {
   3: { name: 'Золотое яблоко', color: 0xFFD700, heal: 10 },
 };
 
-// ═══════════════════════════════════════════════════════════════
-//  MATERIALS
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ MATERIALS ═══
 const MATERIAL_INFO = {
   0: { name: 'Палка', color: 0x8B6F47 },
   1: { name: 'Уголь', color: 0x222222 },
@@ -113,47 +102,30 @@ const MATERIAL_INFO = {
   5: { name: 'Пшеница', color: 0xD2A24A },
 };
 
-// ═══════════════════════════════════════════════════════════════
-//  CRAFTING RECIPES
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ RECIPES ═══
 const RECIPES = [
-  // Блоки
   { result: { type: 'block', id: 3, count: 1 }, ingredients: [{ type: 'material', id: 0, count: 1 }] },
-
-  // Мечи
   { result: { type: 'weapon', id: 0, count: 1 }, ingredients: [{ type: 'block', id: 3, count: 2 }, { type: 'material', id: 0, count: 1 }] },
   { result: { type: 'weapon', id: 1, count: 1 }, ingredients: [{ type: 'block', id: 2, count: 2 }, { type: 'material', id: 0, count: 1 }] },
   { result: { type: 'weapon', id: 2, count: 1 }, ingredients: [{ type: 'material', id: 2, count: 2 }, { type: 'material', id: 0, count: 1 }] },
   { result: { type: 'weapon', id: 3, count: 1 }, ingredients: [{ type: 'material', id: 3, count: 2 }, { type: 'material', id: 0, count: 1 }] },
   { result: { type: 'weapon', id: 4, count: 1 }, ingredients: [{ type: 'material', id: 4, count: 2 }, { type: 'material', id: 0, count: 1 }] },
-
-  // Броня: железо
   { result: { type: 'armor', id: 1, slot: 'helmet', count: 1 }, ingredients: [{ type: 'material', id: 2, count: 5 }] },
   { result: { type: 'armor', id: 1, slot: 'chestplate', count: 1 }, ingredients: [{ type: 'material', id: 2, count: 8 }] },
   { result: { type: 'armor', id: 1, slot: 'leggings', count: 1 }, ingredients: [{ type: 'material', id: 2, count: 7 }] },
   { result: { type: 'armor', id: 1, slot: 'boots', count: 1 }, ingredients: [{ type: 'material', id: 2, count: 4 }] },
-
-  // Броня: золото
   { result: { type: 'armor', id: 2, slot: 'helmet', count: 1 }, ingredients: [{ type: 'material', id: 3, count: 5 }] },
   { result: { type: 'armor', id: 2, slot: 'chestplate', count: 1 }, ingredients: [{ type: 'material', id: 3, count: 8 }] },
   { result: { type: 'armor', id: 2, slot: 'leggings', count: 1 }, ingredients: [{ type: 'material', id: 3, count: 7 }] },
   { result: { type: 'armor', id: 2, slot: 'boots', count: 1 }, ingredients: [{ type: 'material', id: 3, count: 4 }] },
-
-  // Броня: алмаз
   { result: { type: 'armor', id: 3, slot: 'helmet', count: 1 }, ingredients: [{ type: 'material', id: 4, count: 5 }] },
   { result: { type: 'armor', id: 3, slot: 'chestplate', count: 1 }, ingredients: [{ type: 'material', id: 4, count: 8 }] },
   { result: { type: 'armor', id: 3, slot: 'leggings', count: 1 }, ingredients: [{ type: 'material', id: 4, count: 7 }] },
   { result: { type: 'armor', id: 3, slot: 'boots', count: 1 }, ingredients: [{ type: 'material', id: 4, count: 4 }] },
-
-  // Еда
   { result: { type: 'food', id: 1, count: 1 }, ingredients: [{ type: 'material', id: 5, count: 3 }] },
 ];
 
-// ═══════════════════════════════════════════════════════════════
-//  WORLD
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ WORLD ═══
 const world = new Map();
 const key = (x, y, z) => `${x},${y},${z}`;
 
@@ -167,7 +139,6 @@ function generateWorld() {
         if (y === h) type = BLOCK_TYPES.GRASS;
         else if (y > h - 2) type = BLOCK_TYPES.DIRT;
 
-        // Руды
         if (y < 4 && Math.random() < 0.02) type = BLOCK_TYPES.DIAMOND_ORE;
         else if (y < 6 && Math.random() < 0.03) type = BLOCK_TYPES.GOLD_ORE;
         else if (y < 10 && Math.random() < 0.05) type = BLOCK_TYPES.IRON_ORE;
@@ -199,14 +170,10 @@ function addTree(x, y, z) {
 
 generateWorld();
 
-// ═══════════════════════════════════════════════════════════════
-//  HTTP
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ HTTP ═══
 const httpServer = http.createServer((req, res) => {
   let filePath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
   filePath = path.join(__dirname, 'public', filePath);
-
   fs.readFile(filePath, (err, data) => {
     if (err) {
       if (!req.url.includes('favicon')) console.log(`[${GAME_NAME}] 404: ${req.url}`);
@@ -230,14 +197,17 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[${GAME_NAME}] HTTP: http://0.0.0.0:${PORT}`);
 });
 
-// ═══════════════════════════════════════════════════════════════
-//  WEBSOCKET
-// ═══════════════════════════════════════════════════════════════
-
-const wss = new WebSocket.Server({ server: httpServer, verifyClient: () => true });
+// ═══ WEBSOCKET ═══
+const wss = new WebSocket.Server({
+  server: httpServer,
+  verifyClient: () => true,
+  perMessageDeflate: false,  // ОПТИМИЗАЦИЯ: отключаем сжатие (CPU)
+  maxPayload: 1024 * 64,      // 64 КБ максимум на сообщение
+});
 
 const clients = new Map();
 const players = new Map();
+const playerRates = new Map();
 let nextId = 1;
 
 function makeEmptyInventory() {
@@ -248,6 +218,15 @@ function makeEmptyArmor() {
   return { helmet: null, chestplate: null, leggings: null, boots: null };
 }
 
+function checkRate(playerId) {
+  const now = Date.now();
+  if (!playerRates.has(playerId)) playerRates.set(playerId, []);
+  const arr = playerRates.get(playerId).filter(t => now - t < RATE_WINDOW);
+  arr.push(now);
+  playerRates.set(playerId, arr);
+  return arr.length <= RATE_LIMIT;
+}
+
 wss.on('connection', (ws) => {
   if (clients.size >= MAX_PLAYERS) {
     ws.send(JSON.stringify({ type: 'kick', reason: 'Сервер полон' }));
@@ -256,7 +235,7 @@ wss.on('connection', (ws) => {
   }
 
   const playerId = `p_${nextId++}`;
-  console.log(`[${GAME_NAME}] ${playerId} connected`);
+  console.log(`[${GAME_NAME}] ${playerId} connected (${clients.size + 1}/${MAX_PLAYERS})`);
 
   clients.set(ws, playerId);
   players.set(playerId, {
@@ -281,6 +260,7 @@ wss.on('connection', (ws) => {
     version: VERSION,
     gameName: GAME_NAME,
     maxPlayers: MAX_PLAYERS,
+    currentPlayers: clients.size,
     world: Object.fromEntries(world),
     players: Object.fromEntries(players),
     blockTypes: BLOCK_INFO,
@@ -294,12 +274,16 @@ wss.on('connection', (ws) => {
     maxHp: PLAYER_MAX_HP,
     maxFood: PLAYER_MAX_FOOD,
     inventorySize: PLAYER_INVENTORY_SIZE,
+    networkRate: MOVE_NETWORK_RATE,
+    broadcastRadius: NEARBY_RADIUS,
   }));
 
   broadcast({ type: 'player_join', player: players.get(playerId) }, ws);
   broadcast({ type: 'chat', ...addChatMessage('SYSTEM', `${playerId} присоединился`) });
+  broadcastOnline();
 
   ws.on('message', (raw) => {
+    if (!checkRate(playerId)) return;
     try { handleMessage(ws, playerId, JSON.parse(raw)); }
     catch (e) { console.error('Parse error:', e.message); }
   });
@@ -309,8 +293,10 @@ wss.on('connection', (ws) => {
     const name = p ? p.name : playerId;
     clients.delete(ws);
     players.delete(playerId);
+    playerRates.delete(playerId);
     broadcast({ type: 'player_leave', id: playerId });
     broadcast({ type: 'chat', ...addChatMessage('SYSTEM', `${name} покинул`) });
+    broadcastOnline();
   });
 
   ws.on('error', (err) => console.error(`[${GAME_NAME}] ${playerId} error:`, err.message));
@@ -327,18 +313,16 @@ const interval = setInterval(() => {
 }, 30000);
 wss.on('close', () => clearInterval(interval));
 
-// ═══ Еда / голод ═══
+// ═══ FOOD / HP ═══
 setInterval(() => {
   const now = Date.now();
   for (const player of players.values()) {
     if (player.hp <= 0) continue;
-
     if (now - player.lastFoodDecay > FOOD_DECAY_INTERVAL) {
       player.lastFoodDecay = now;
       player.food = Math.max(0, player.food - 1);
       broadcast({ type: 'player_food', id: player.id, food: player.food });
     }
-
     if (player.food >= 18 && player.hp < PLAYER_MAX_HP) {
       player.hp = Math.min(PLAYER_MAX_HP, player.hp + 1);
       broadcast({ type: 'player_health', id: player.id, hp: player.hp });
@@ -346,10 +330,47 @@ setInterval(() => {
   }
 }, 1000);
 
-// ═══════════════════════════════════════════════════════════════
-//  HANDLE MESSAGES
-// ═══════════════════════════════════════════════════════════════
+// ═══ БАТЧИНГ BROADCAST ═══
+let broadcastQueue = [];
+function broadcast(msg, exclude = null) {
+  broadcastQueue.push({ msg, exclude });
+}
 
+setInterval(() => {
+  if (broadcastQueue.length === 0) return;
+  const queue = broadcastQueue;
+  broadcastQueue = [];
+
+  for (const { msg, exclude } of queue) {
+    const data = JSON.stringify(msg);
+    for (const [ws] of clients) {
+      if (ws === exclude) continue;
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    }
+  }
+}, BROADCAST_INTERVAL);
+
+// ═══ BROADCAST NEARBY ═══
+function broadcastNearby(msg, x, y, z, exclude = null) {
+  const data = JSON.stringify(msg);
+  for (const [ws, id] of clients) {
+    if (ws === exclude) continue;
+    const p = players.get(id);
+    if (!p) continue;
+    const dx = p.x - x, dy = p.y - y, dz = p.z - z;
+    if (dx * dx + dy * dy + dz * dz < NEARBY_RADIUS_SQ) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(data);
+    }
+  }
+}
+
+function broadcastOnline() {
+  broadcast({ type: 'online', count: clients.size, max: MAX_PLAYERS });
+}
+
+// ═══ HANDLE MESSAGES ═══
 function handleMessage(ws, playerId, msg) {
   const player = players.get(playerId);
   if (!player) return;
@@ -357,7 +378,10 @@ function handleMessage(ws, playerId, msg) {
   switch (msg.type) {
     case 'set_name': {
       const oldName = player.name;
-      player.name = String(msg.name || '').slice(0, 20).trim() || `Player_${playerId}`;
+      let name = String(msg.name || '').slice(0, 20).trim() || `Player_${playerId}`;
+      const { clean, found } = filterBadWords(name);
+      if (found) name = clean;
+      player.name = name;
       broadcast({ type: 'player_update', player });
       if (oldName !== player.name) {
         broadcast({ type: 'chat', ...addChatMessage('SYSTEM', `${oldName} теперь ${player.name}`) });
@@ -371,11 +395,13 @@ function handleMessage(ws, playerId, msg) {
       player.z = +msg.z || 0;
       player.yaw = +msg.yaw || 0;
       player.pitch = +msg.pitch || 0;
-      broadcast({
+
+      // ОПТИМИЗАЦИЯ: только ближним
+      broadcastNearby({
         type: 'player_move', id: playerId,
         x: player.x, y: player.y, z: player.z,
         yaw: player.yaw, pitch: player.pitch,
-      }, ws);
+      }, player.x, player.y, player.z, ws);
       break;
     }
 
@@ -385,7 +411,9 @@ function handleMessage(ws, playerId, msg) {
       if (world.has(k)) return;
       if (!(block in BLOCK_INFO)) return;
       world.set(k, block);
-      broadcast({ type: 'block_place', x, y, z, block });
+
+      // ОПТИМИЗАЦИЯ: только ближним
+      broadcastNearby({ type: 'block_place', x, y, z, block }, x, y, z);
       break;
     }
 
@@ -395,9 +423,10 @@ function handleMessage(ws, playerId, msg) {
       if (!world.has(k)) return;
       const type = world.get(k);
       world.delete(k);
-      broadcast({ type: 'block_remove', x, y, z });
 
-      // Добыча руд → материалы
+      broadcastNearby({ type: 'block_remove', x, y, z }, x, y, z);
+
+      // Дроп
       if (type === BLOCK_TYPES.COAL_ORE) addInventoryItem(player, 'material', 1, 1);
       if (type === BLOCK_TYPES.IRON_ORE) addInventoryItem(player, 'material', 2, 1);
       if (type === BLOCK_TYPES.GOLD_ORE) addInventoryItem(player, 'material', 3, 1);
@@ -408,11 +437,22 @@ function handleMessage(ws, playerId, msg) {
     case 'chat': {
       const text = String(msg.text || '').slice(0, 200).trim();
       if (!text) return;
-      broadcast({ type: 'chat', ...addChatMessage(player.name, text) });
+
+      const { clean, found } = filterBadWords(text);
+
+      if (clean.replace(/\*/g, '').trim() === '') {
+        ws.send(JSON.stringify({ type: 'chat_warning', text: 'Сообщение отклонено (мат)' }));
+        return;
+      }
+
+      broadcast({ type: 'chat', ...addChatMessage(player.name, clean) });
+
+      if (found) {
+        ws.send(JSON.stringify({ type: 'chat_warning', text: 'Мат запрещён. Сообщение изменено.' }));
+      }
       break;
     }
 
-    // ═══ АТАКА ═══
     case 'attack': {
       const target = players.get(msg.target);
       if (!target) return;
@@ -429,11 +469,9 @@ function handleMessage(ws, playerId, msg) {
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (dist > ATTACK_RANGE) return;
 
-      // Оружие
       const weapon = player.inventory[player.selectedSlot];
       const weaponDamage = (weapon && weapon.type === 'weapon') ? WEAPON_INFO[weapon.id].damage : 1;
 
-      // Броня цели
       let armorPoints = 0;
       for (const slot of ARMOR_SLOTS) {
         const piece = target.armor[slot];
@@ -507,7 +545,6 @@ function handleMessage(ws, playerId, msg) {
       broadcast({ type: 'player_health', id: playerId, hp: player.hp });
       broadcast({ type: 'player_food', id: playerId, food: player.food });
       broadcast({ type: 'inventory_update', id: playerId, inventory: player.inventory });
-      broadcast({ type: 'chat', ...addChatMessage('SYSTEM', `${player.name} съел ${foodInfo.name}`) });
       break;
     }
 
@@ -518,8 +555,7 @@ function handleMessage(ws, playerId, msg) {
     }
 
     case 'craft': {
-      const recipeIndex = msg.recipeIndex;
-      const recipe = RECIPES[recipeIndex];
+      const recipe = RECIPES[msg.recipeIndex];
       if (!recipe) return;
       if (!hasIngredients(player, recipe.ingredients)) {
         ws.send(JSON.stringify({ type: 'craft_fail', reason: 'Нет материалов' }));
@@ -533,10 +569,9 @@ function handleMessage(ws, playerId, msg) {
       break;
     }
 
-    case 'leaderboard': {
+    case 'leaderboard':
       ws.send(JSON.stringify({ type: 'leaderboard', data: getLeaderboard() }));
       break;
-    }
 
     case 'ping':
       ws.send(JSON.stringify({ type: 'pong', t: msg.t }));
@@ -550,7 +585,6 @@ function addInventoryItem(player, type, id, count, slot) {
     player.inventory[slot] = { type, id, count };
     return;
   }
-  // Ищем свободный слот
   for (let i = 0; i < player.inventory.length; i++) {
     if (!player.inventory[i]) {
       player.inventory[i] = { type, id, count };
@@ -563,9 +597,7 @@ function hasIngredients(player, ingredients) {
   for (const ing of ingredients) {
     let found = 0;
     for (const item of player.inventory) {
-      if (item && item.type === ing.type && item.id === ing.id) {
-        found += item.count;
-      }
+      if (item && item.type === ing.type && item.id === ing.id) found += item.count;
     }
     if (found < ing.count) return false;
   }
@@ -594,14 +626,6 @@ function getLeaderboard() {
     .map(p => ({ name: p.name, kills: p.kills, deaths: p.deaths }));
 }
 
-function broadcast(msg, exclude = null) {
-  const data = JSON.stringify(msg);
-  for (const [ws] of clients) {
-    if (ws === exclude) continue;
-    if (ws.readyState === WebSocket.OPEN) ws.send(data);
-  }
-}
-
 process.on('SIGINT', () => {
   console.log(`\n[${GAME_NAME}] Shutting down...`);
   process.exit(0);
@@ -609,4 +633,5 @@ process.on('SIGINT', () => {
 
 console.log(`[${GAME_NAME}] WebSocket ready on port ${PORT}`);
 console.log(`[${GAME_NAME}] Max players: ${MAX_PLAYERS}`);
+console.log(`[${GAME_NAME}] Optimizations: rate-limit=${RATE_LIMIT}/s, broadcast=${BROADCAST_INTERVAL}ms, radius=${NEARBY_RADIUS}`);
 console.log(`[${GAME_NAME}] Ready!`);
