@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SuleimanCraft 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #87CEEB; font-family: sans-serif; }
+  canvas { display: block; }
+  #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    color: #fff; font-size: 24px; pointer-events: none; text-shadow: 0 0 4px #000; z-index: 10; }
+  #hud { position: fixed; top: 10px; left: 10px; color: #fff; font-family: monospace;
+    font-size: 13px; background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px;
+    z-index: 10; line-height: 1.5; }
+  #hotbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; padding: 8px; background: rgba(0,0,0,0.5);
+    border-radius: 8px; z-index: 10; }
+  .slot { width: 44px; height: 44px; border: 2px solid #444; border-radius: 4px;
+    cursor: pointer; transition: all 0.15s; }
+  .slot.active { border-color: #fff; transform: scale(1.1); box-shadow: 0 0 12px rgba(255,255,255,0.6); }
+  #chat { position: fixed; bottom: 80px; left: 10px; width: 340px; max-height: 260px;
+    overflow-y: auto; color: #fff; font-size: 13px; z-index: 10;
+    padding: 4px; scrollbar-width: thin; }
+  #chat::-webkit-scrollbar { width: 6px; }
+  #chat::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+  .msg { background: rgba(0,0,0,0.55); padding: 5px 10px; margin-bottom: 3px;
+    border-radius: 6px; word-wrap: break-word; backdrop-filter: blur(4px); }
+  .msg .name { color: #4CAF50; font-weight: 700; margin-right: 4px; }
+  .msg .name.system { color: #FFD700; }
+  .msg .time { color: #888; font-size: 11px; margin-left: 6px; }
+  .msg.own { background: rgba(76, 175, 80, 0.25); }
+  #chatInput { position: fixed; bottom: 50px; left: 10px; width: 340px;
+    padding: 10px 14px; background: rgba(0,0,0,0.85); color: #fff;
+    border: 2px solid #4CAF50; border-radius: 8px; font-size: 14px; z-index: 11;
+    display: none; outline: none; }
+  #players { position: fixed; top: 10px; right: 10px; color: #fff; font-size: 13px;
+    background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px; z-index: 10; }
+  #players .name { color: #4CAF50; }
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; text-align: center; }
+  #overlay h1 { font-size: 42px; margin-bottom: 20px; color: #4CAF50; }
+  #overlay p { font-size: 16px; color: #aaa; margin: 6px 0; }
+  #overlay input { margin-top: 20px; padding: 10px 16px; background: #222; color: #fff;
+    border: 1px solid #444; border-radius: 6px; font-size: 16px; text-align: center; width: 220px; }
+  #overlay .btn { margin-top: 24px; padding: 12px 32px; background: #4CAF50; color: #fff;
+    border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: 600; }
+  #overlay .btn:hover { background: #45a049; }
+  #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px);
+    background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px; border-radius: 8px;
+    transition: transform 0.3s; z-index: 200; }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+  <div id="crosshair" style="display:none">+</div>
+  <div id="hud" style="display:none">
+    <div>Позиция: <span id="pos">0, 0, 0</span></div>
+    <div>Чанков: <span id="chunks">0</span> / <span id="chunksTotal">0</span></div>
+    <div>FPS: <span id="fps">0</span></div>
+    <div>Пинг: <span id="ping">0</span> мс</div>
+  </div>
+  <div id="hotbar" style="display:none"></div>
+  <div id="chat" style="display:none"></div>
+  <input type="text" id="chatInput" placeholder="Сообщение... (Enter — отправить, Esc — отмена)" maxlength="200">
+  <div id="players" style="display:none">
+    <div>Игроков: <span id="playerCount">1</span></div>
+    <div id="playerList"></div>
+  </div>
+
+  <div id="overlay">
+    <h1>SuleimanCraft</h1>
+    <p>WASD — движение</p>
+    <p>Мышь — обзор</p>
+    <p>ЛКМ — поставить блок</p>
+    <p>ПКМ — удалить блок</p>
+    <p>Пробел — прыжок</p>
+    <p>Shift — спуск</p>
+    <p>1-0 — выбор блока</p>
+    <p>T — чат</p>
+    <input type="text" id="nameInput" placeholder="Введи имя" maxlength="20" value="Player">
+    <button class="btn" id="startBtn">ИГРАТЬ</button>
+  </div>
+
+  <div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+const CHUNK_SIZE = 16;
+const RENDER_DISTANCE = 32;
+const RENDER_DISTANCE_SQ = RENDER_DISTANCE * RENDER_DISTANCE;
+
+const BLOCK_TYPES = [
+  { name: 'Трава', color: 0x4CAF50 },
+  { name: 'Земля', color: 0x8B6F47 },
+  { name: 'Камень', color: 0x808080 },
+  { name: 'Дерево', color: 0x654321 },
+  { name: 'Листва', color: 0x2E7D32 },
+  { name: 'Песок', color: 0xF4E4A0 },
+  { name: 'Вода', color: 0x2196F3 },
+  { name: 'Кирпич', color: 0xB22222 },
+  { name: 'Стекло', color: 0xADD8E6 },
+  { name: 'Золото', color: 0xFFD700 },
+];
+
+let scene, camera, renderer;
+let ws;
+let myId = null;
+let myName = 'Player';
+let player = {
+  pos: new THREE.Vector3(0, 15, 0),
+  vel: new THREE.Vector3(),
+  onGround: false,
+  yaw: 0, pitch: 0,
+  name: 'Player',
+};
+let remotePlayers = new Map();
+let keys = {};
+let selectedBlock = 0;
+let mouseLocked = false;
+let chatOpen = false;
+let lastNetSend = 0;
+const NETWORK_RATE = 10;
+
+const chunks = new Map();
+const world = new Map();
+
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87CEEB);
+  scene.fog = new THREE.Fog(0x87CEEB, RENDER_DISTANCE * 0.8, RENDER_DISTANCE * 1.2);
+
+  camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, RENDER_DISTANCE * 2);
+
+  renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+  renderer.shadowMap.enabled = false;
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+
+  buildHotbar();
+
+  addEventListener('resize', onResize);
+  addEventListener('keydown', onKeyDown);
+  addEventListener('keyup', e => keys[e.code] = false);
+  addEventListener('mousemove', onMouseMove);
+  addEventListener('mousedown', onMouseDown);
+  addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('pointerlockchange', () => {
+    mouseLocked = document.pointerLockElement === document.body;
+  });
+
+  document.getElementById('startBtn').onclick = startGame;
+
+  animate();
+}
+
+function addBlock(x, y, z, type) {
+  const k = `${x},${y},${z}`;
+  if (world.has(k)) return;
+  world.set(k, type);
+
+  const cx = Math.floor(x / CHUNK_SIZE);
+  const cy = Math.floor(y / CHUNK_SIZE);
+  const cz = Math.floor(z / CHUNK_SIZE);
+  const ck = `${cx},${cy},${cz}`;
+
+  if (!chunks.has(ck)) chunks.set(ck, { blocks: [] });
+  chunks.get(ck).blocks.push({ x, y, z, type });
+
+  updateChunk(ck);
+}
+
+function updateChunk(ck) {
+  const chunk = chunks.get(ck);
+  if (!chunk) return;
+
+  const byType = {};
+  for (const b of chunk.blocks) {
+    if (!byType[b.type]) byType[b.type] = [];
+    byType[b.type].push(b);
+  }
+
+  if (chunk.meshes) {
+    for (const m of chunk.meshes) {
+      scene.remove(m);
+      m.geometry.dispose();
+      m.material.dispose();
+    }
+  }
+  chunk.meshes = [];
+
+  const dummy = new THREE.Object3D();
+  for (const [typeStr, blocks] of Object.entries(byType)) {
+    const type = parseInt(typeStr);
+    const mesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshLambertMaterial({
+        color: BLOCK_TYPES[type].color,
+        transparent: type === 6 || type === 8,
+        opacity: type === 6 ? 0.7 : (type === 8 ? 0.6 : 1.0),
+      }),
+      blocks.length
+    );
+    mesh.frustumCulled = false;
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
+      dummy.position.set(b.x + 0.5, b.y + 0.5, b.z + 0.5);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    scene.add(mesh);
+    chunk.meshes.push(mesh);
+  }
+
+  document.getElementById('chunksTotal').textContent = chunks.size;
+}
+
+function removeBlock(x, y, z) {
+  const k = `${x},${y},${z}`;
+  if (!world.has(k)) return;
+  world.delete(k);
+
+  const cx = Math.floor(x / CHUNK_SIZE);
+  const cy = Math.floor(y / CHUNK_SIZE);
+  const cz = Math.floor(z / CHUNK_SIZE);
+  const ck = `${cx},${cy},${cz}`;
+
+  const chunk = chunks.get(ck);
+  if (!chunk) return;
+
+  const idx = chunk.blocks.findIndex(b => b.x === x && b.y === y && b.z === z);
+  if (idx >= 0) chunk.blocks.splice(idx, 1);
+  updateChunk(ck);
+}
+
+let lastCullUpdate = 0;
+function updateCulling(now) {
+  if (now - lastCullUpdate < 200) return;
+  lastCullUpdate = now;
+
+  const px = player.pos.x, py = player.pos.y, pz = player.pos.z;
+  let visible = 0;
+
+  for (const [ck, chunk] of chunks) {
+    if (!chunk.meshes) continue;
+    const [cx, cy, cz] = ck.split(',').map(Number);
+    const centerX = cx * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const centerY = cy * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const centerZ = cz * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const dx = centerX - px, dy = centerY - py, dz = centerZ - pz;
+    const distSq = dx * dx + dy * dy + dz * dz;
+    const inRange = distSq < RENDER_DISTANCE_SQ + CHUNK_SIZE * CHUNK_SIZE * 3;
+    for (const mesh of chunk.meshes) mesh.visible = inRange;
+    if (inRange) visible++;
+  }
+  document.getElementById('chunks').textContent = visible;
+}
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'set_name', name: player.name }));
+  };
+  ws.onmessage = (e) => handleServerMessage(JSON.parse(e.data));
+  ws.onclose = () => showToast('Соединение потеряно');
+  ws.onerror = () => showToast('Ошибка соединения');
+}
+
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+}
+
+function handleServerMessage(msg) {
+  switch (msg.type) {
+    case 'init': {
+      myId = msg.id;
+      const entries = Object.entries(msg.world);
+      showToast(`Загрузка мира (${entries.length} блоков)...`);
+
+      // Загрузка чата
+      if (msg.chatHistory && msg.chatHistory.length) {
+        const chat = document.getElementById('chat');
+        chat.innerHTML = '';
+        for (const m of msg.chatHistory) renderChatMessage(m);
+      }
+
+      let i = 0;
+      const BATCH = 5000;
+      function loadBatch() {
+        const end = Math.min(i + BATCH, entries.length);
+        for (; i < end; i++) {
+          const [k, type] = entries[i];
+          const [x, y, z] = k.split(',').map(Number);
+          addBlock(x, y, z, type);
+        }
+        if (i < entries.length) requestAnimationFrame(loadBatch);
+        else showToast(`Мир загружен: ${entries.length} блоков`);
+      }
+      loadBatch();
+
+      for (const id in msg.players) {
+        if (id === myId) continue;
+        createRemotePlayer(id, msg.players[id]);
+      }
+      updatePlayerList();
+      break;
+    }
+
+    case 'player_join':
+      if (msg.player.id === myId) break;
+      createRemotePlayer(msg.player.id, msg.player);
+      updatePlayerList();
+      break;
+
+    case 'player_leave': {
+      removeRemotePlayer(msg.id);
+      updatePlayerList();
+      break;
+    }
+
+    case 'player_move': {
+      const rp = remotePlayers.get(msg.id);
+      if (rp) {
+        rp.targetPos.set(msg.x, msg.y, msg.z);
+        rp.yaw = msg.yaw;
+        rp.pitch = msg.pitch;
+      }
+      break;
+    }
+
+    case 'player_update': {
+      const rp = remotePlayers.get(msg.player.id);
+      if (rp) { rp.name = msg.player.name; rp.updateNameSprite(); }
+      updatePlayerList();
+      break;
+    }
+
+    case 'block_place':
+      if (!world.has(`${msg.x},${msg.y},${msg.z}`)) addBlock(msg.x, msg.y, msg.z, msg.block);
+      break;
+
+    case 'block_remove':
+      removeBlock(msg.x, msg.y, msg.z);
+      break;
+
+    case 'chat':
+      renderChatMessage(msg);
+      break;
+
+    case 'pong':
+      document.getElementById('ping').textContent = Date.now() - msg.t;
+      break;
+  }
+}
+
+// ═══ ЧАТ ═══
+function renderChatMessage(msg) {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  if (msg.name === myName) div.classList.add('own');
+
+  const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('ru-RU', {
+    hour: '2-digit', minute: '2-digit'
+  });
+
+  const nameClass = msg.name === 'SYSTEM' ? 'name system' : 'name';
+  div.innerHTML =
+    `<span class="${nameClass}">${escapeHtml(msg.name)}</span>` +
+    `${escapeHtml(msg.text)}` +
+    `<span class="time">${time}</span>`;
+
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  while (chat.children.length > 50) chat.removeChild(chat.firstChild);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+
+function openChat() {
+  chatOpen = true;
+  const inp = document.getElementById('chatInput');
+  inp.style.display = 'block';
+  inp.focus();
+  inp.onkeydown = (e) => {
+    if (e.code === 'Enter') {
+      const text = inp.value.trim();
+      if (text) send({ type: 'chat', text });
+      closeChat();
+    } else if (e.code === 'Escape') {
+      closeChat();
+    }
+    e.stopPropagation();
+  };
+}
+
+function closeChat() {
+  chatOpen = false;
+  const inp = document.getElementById('chatInput');
+  inp.style.display = 'none';
+  inp.value = '';
+  document.body.requestPointerLock();
+}
+
+function createRemotePlayer(id, data) {
+  if (remotePlayers.has(id)) return;
+  const geo = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+  const mat = new THREE.MeshLambertMaterial({ color: 0xff3b3b });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(data.x, data.y + 0.9, data.z);
+  scene.add(mesh);
+
+  const rp = {
+    mesh,
+    name: data.name,
+    targetPos: new THREE.Vector3(data.x, data.y, data.z),
+    lerpPos: new THREE.Vector3(data.x, data.y, data.z),
+    yaw: data.yaw || 0,
+    pitch: data.pitch || 0,
+    sprite: null,
+    updateNameSprite: () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0, 0, 256, 64);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(rp.name, 128, 32);
+      rp.sprite.material.map = new THREE.CanvasTexture(canvas);
+      rp.sprite.material.needsUpdate = true;
+    },
+  };
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, 0, 256, 64);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 32px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(data.name, 128, 32);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+  sprite.scale.set(2, 0.5, 1);
+  sprite.position.y = 1.4;
+  mesh.add(sprite);
+  rp.sprite = sprite;
+
+  remotePlayers.set(id, rp);
+}
+
+function removeRemotePlayer(id) {
+  const rp = remotePlayers.get(id);
+  if (!rp) return;
+  scene.remove(rp.mesh);
+  rp.mesh.geometry.dispose();
+  rp.mesh.material.dispose();
+  remotePlayers.delete(id);
+}
+
+function updateRemotePlayers(dt) {
+  const lerp = Math.min(1, dt * 15);
+  for (const rp of remotePlayers.values()) {
+    rp.lerpPos.lerp(rp.targetPos, lerp);
+    rp.mesh.position.set(rp.lerpPos.x, rp.lerpPos.y + 0.9, rp.lerpPos.z);
+    rp.mesh.rotation.y = rp.yaw;
+  }
+}
+
+function updatePlayerList() {
+  document.getElementById('playerCount').textContent = 1 + remotePlayers.size;
+  let html = `<div class="name">${escapeHtml(myName)} (ты)</div>`;
+  for (const rp of remotePlayers.values()) html += `<div>${escapeHtml(rp.name)}</div>`;
+  document.getElementById('playerList').innerHTML = html;
+}
+
+function updatePlayer(dt) {
+  player.vel.y -= 25 * dt;
+
+  const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+
+  const move = new THREE.Vector3();
+  if (keys['KeyW']) move.add(forward);
+  if (keys['KeyS']) move.sub(forward);
+  if (keys['KeyD']) move.add(right);
+  if (keys['KeyA']) move.sub(right);
+
+  if (move.length() > 0) {
+    move.normalize().multiplyScalar(5 * dt);
+    player.vel.x = move.x;
+    player.vel.z = move.z;
+  } else {
+    player.vel.x *= 0.8;
+    player.vel.z *= 0.8;
+  }
+
+  if (keys['Space'] && player.onGround) {
+    player.vel.y = 9;
+    player.onGround = false;
+  }
+  if (keys['ShiftLeft']) {
+    player.vel.y = -5;
+    player.onGround = false;
+  }
+
+  const newPos = player.pos.clone().addScaledVector(player.vel, dt);
+  player.onGround = false;
+  if (checkCollision(newPos)) {
+    const tryX = new THREE.Vector3(newPos.x, player.pos.y, player.pos.z);
+    if (!checkCollision(tryX)) player.pos.x = newPos.x; else player.vel.x = 0;
+    const tryZ = new THREE.Vector3(player.pos.x, player.pos.y, newPos.z);
+    if (!checkCollision(tryZ)) player.pos.z = newPos.z; else player.vel.z = 0;
+    const tryY = new THREE.Vector3(player.pos.x, newPos.y, player.pos.z);
+    if (!checkCollision(tryY)) player.pos.y = newPos.y;
+    else { if (player.vel.y < 0) player.onGround = true; player.vel.y = 0; }
+  } else {
+    player.pos.copy(newPos);
+  }
+
+  if (player.pos.y < -20) { player.pos.set(0, 15, 0); player.vel.set(0, 0, 0); }
+
+  camera.position.copy(player.pos);
+  camera.position.y += 1.6;
+  const dir = new THREE.Vector3(
+    -Math.sin(player.yaw) * Math.cos(player.pitch),
+    Math.sin(player.pitch),
+    -Math.cos(player.yaw) * Math.cos(player.pitch)
+  );
+  camera.lookAt(camera.position.clone().add(dir));
+
+  document.getElementById('pos').textContent =
+    `${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)}`;
+}
+
+function checkCollision(pos) {
+  const halfW = 0.3, h = 1.8;
+  for (let x = Math.floor(pos.x - halfW); x <= Math.floor(pos.x + halfW); x++)
+    for (let y = Math.floor(pos.y); y <= Math.floor(pos.y + h); y++)
+      for (let z = Math.floor(pos.z - halfW); z <= Math.floor(pos.z + halfW); z++)
+        if (world.has(`${x},${y},${z}`)) return true;
+  return false;
+}
+
+function startGame() {
+  myName = (document.getElementById('nameInput').value.trim() || 'Player').slice(0, 20);
+  player.name = myName;
+  document.getElementById('overlay').style.display = 'none';
+  ['crosshair', 'hud', 'hotbar', 'chat', 'players'].forEach(id => {
+    document.getElementById(id).style.display = id === 'hotbar' ? 'flex' : 'block';
+  });
+  document.body.requestPointerLock();
+  connect();
+  updatePlayerList();
+}
+
+function onKeyDown(e) {
+  if (e.code === 'KeyT' && !chatOpen) {
+    e.preventDefault();
+    openChat();
+    return;
+  }
+  if (chatOpen) return;
+
+  keys[e.code] = true;
+  const num = parseInt(e.key);
+  if (num >= 0 && num <= 9) selectBlock(num);
+}
+
+function onMouseMove(e) {
+  if (!mouseLocked || chatOpen) return;
+  player.yaw -= e.movementX * 0.002;
+  player.pitch -= e.movementY * 0.002;
+  player.pitch = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, player.pitch));
+}
+
+function onMouseDown(e) {
+  if (!mouseLocked || chatOpen) return;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const hit = raycastBlocks(camera.position.clone(), dir);
+  if (!hit) return;
+
+  if (e.button === 0) {
+    const place = hit.point.clone().add(hit.normal);
+    const x = Math.floor(place.x), y = Math.floor(place.y), z = Math.floor(place.z);
+    if (!world.has(`${x},${y},${z}`)) {
+      addBlock(x, y, z, selectedBlock);
+      send({ type: 'block_place', x, y, z, block: selectedBlock });
+    }
+  } else if (e.button === 2) {
+    const p = hit.point.clone().sub(hit.normal.clone().multiplyScalar(0.5));
+    const x = Math.floor(p.x), y = Math.floor(p.y), z = Math.floor(p.z);
+    removeBlock(x, y, z);
+    send({ type: 'block_remove', x, y, z });
+  }
+}
+
+function raycastBlocks(origin, dir) {
+  const raycaster = new THREE.Raycaster(origin, dir, 0, 6);
+  const meshes = [];
+  const px = origin.x, py = origin.y, pz = origin.z;
+  for (const [ck, chunk] of chunks) {
+    if (!chunk.meshes) continue;
+    const [cx, cy, cz] = ck.split(',').map(Number);
+    const centerX = cx * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const centerY = cy * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const centerZ = cz * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const dx = centerX - px, dy = centerY - py, dz = centerZ - pz;
+    if (dx*dx + dy*dy + dz*dz < 100) {
+      for (const m of chunk.meshes) meshes.push(m);
+    }
+  }
+  const hits = raycaster.intersectObjects(meshes);
+  if (hits.length === 0) return null;
+  return { point: hits[0].point, normal: hits[0].face.normal.clone() };
+}
+
+function buildHotbar() {
+  const hotbar = document.getElementById('hotbar');
+  hotbar.innerHTML = '';
+  BLOCK_TYPES.forEach((b, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (i === selectedBlock ? ' active' : '');
+    slot.style.background = '#' + b.color.toString(16).padStart(6, '0');
+    slot.title = b.name;
+    slot.onclick = () => selectBlock(i);
+    hotbar.appendChild(slot);
+  });
+}
+
+function selectBlock(i) {
+  selectedBlock = i;
+  document.querySelectorAll('.slot').forEach((s, idx) => s.classList.toggle('active', idx === i));
+}
+
+function showToast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function onResize() {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+
+let lastTime = performance.now();
+let fpsCounter = 0, fpsTime = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.1);
+  lastTime = now;
+
+  updatePlayer(dt);
+  updateRemotePlayers(dt);
+  updateCulling(now);
+
+  if (now - lastNetSend > 1000 / NETWORK_RATE) {
+    lastNetSend = now;
+    send({
+      type: 'move',
+      x: player.pos.x, y: player.pos.y, z: player.pos.z,
+      yaw: player.yaw, pitch: player.pitch,
+    });
+  }
+
+  if (Math.random() < 0.01) send({ type: 'ping', t: Date.now() });
+
+  fpsCounter++;
+  fpsTime += dt;
+  if (fpsTime >= 1) {
+    document.getElementById('fps').textContent = fpsCounter;
+    fpsCounter = 0; fpsTime = 0;
+  }
+
+  renderer.render(scene, camera);
+}
+
+init();
+</script>
+</body>
+</html>
