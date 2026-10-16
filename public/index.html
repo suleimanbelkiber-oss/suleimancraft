@@ -21,6 +21,7 @@
     font-size: 13px; background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px;
     z-index: 10; line-height: 1.6; }
   #hud .stat { color: #FFD700; }
+  #hud .season { color: #FFAA00; font-weight: bold; }
 
   #bottom-bars {
     position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
@@ -56,6 +57,7 @@
     border-radius: 3px; word-wrap: break-word; text-shadow: 1px 1px 0 #000; }
   .msg .name { color: #55FFFF; font-weight: 700; margin-right: 6px; }
   .msg .name.system { color: #FFAA00; }
+  .msg .name.admin { color: #FFD700; }
   .msg .time { color: #888; font-size: 11px; margin-left: 6px; }
   .msg.own { background: rgba(0, 100, 0, 0.4); }
   .msg.death { background: rgba(150, 0, 0, 0.5); }
@@ -70,6 +72,7 @@
     background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 6px; z-index: 10;
     min-width: 220px; font-family: monospace; }
   #players .name { color: #4CAF50; }
+  #players .name.admin { color: #FFD700; }
   #players .hp { color: #ff4444; font-size: 11px; }
 
   #stats {
@@ -109,24 +112,48 @@
     text-shadow: 1px 1px 0 #000; padding: 2px;
   }
 
-  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); color: #fff;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    z-index: 100; text-align: center; padding: 20px; }
-  #overlay h1 { font-size: 42px; margin-bottom: 20px; color: #4CAF50;
+  /* ═══ AUTH ═══ */
+  #auth {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200;
+  }
+  .auth-panel {
+    background: #1a1a1a; border: 2px solid #444; border-radius: 12px;
+    padding: 30px; width: 340px; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+  }
+  .auth-panel h1 { color: #4CAF50; margin-bottom: 6px; font-size: 28px;
     text-shadow: 2px 2px 0 #000; }
-  #overlay p { font-size: 15px; color: #aaa; margin: 4px 0; }
-  #overlay input { margin-top: 20px; padding: 10px 16px; background: #222; color: #fff;
-    border: 2px solid #444; border-radius: 6px; font-size: 16px; text-align: center;
-    width: 220px; font-family: inherit; }
-  #overlay .btn { margin-top: 24px; padding: 12px 32px; background: #4CAF50; color: #fff;
-    border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: 600;
-    font-family: inherit; }
-  #overlay .btn:hover { background: #45a049; }
+  .auth-panel .subtitle { color: #888; font-size: 12px; margin-bottom: 20px; }
+  .auth-panel input {
+    width: 100%; padding: 10px 14px; margin-bottom: 10px;
+    background: #222; color: #fff; border: 2px solid #444;
+    border-radius: 6px; font-size: 14px; font-family: inherit;
+    outline: none;
+  }
+  .auth-panel input:focus { border-color: #4CAF50; }
+  .auth-panel button {
+    width: 100%; padding: 12px; background: #4CAF50; color: #fff;
+    border: none; border-radius: 6px; font-size: 15px;
+    cursor: pointer; font-weight: 600; font-family: inherit;
+    margin-top: 6px;
+  }
+  .auth-panel button:hover { background: #45a049; }
+  #authError { color: #ff4444; font-size: 12px; margin-top: 10px; min-height: 18px; }
+  .auth-switch { color: #4CAF50; font-size: 13px; margin-top: 12px;
+    cursor: pointer; text-decoration: underline; }
+  .auth-switch:hover { color: #66d966; }
+  .auth-info { color: #666; font-size: 11px; margin-top: 16px; }
+
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); color: #fff;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100; text-align: center; padding: 20px; }
 
   #toast { position: fixed; top: 20px; left: 50%;
     transform: translateX(-50%) translateY(-100px);
     background: rgba(0,0,0,0.85); color: #fff; padding: 10px 20px; border-radius: 8px;
-    transition: transform 0.3s; z-index: 200; pointer-events: none; }
+    transition: transform 0.3s; z-index: 300; pointer-events: none; }
   #toast.show { transform: translateX(-50%) translateY(0); }
 
   #deathScreen {
@@ -198,6 +225,7 @@
     <div>FPS: <span id="fps">0</span></div>
     <div>Пинг: <span id="ping">0</span> мс</div>
     <div>Онлайн: <span id="online" class="stat">1 / 100</span></div>
+    <div>Сезон: <span id="season" class="season">1</span></div>
   </div>
 
   <div id="bottom-bars" style="display:none">
@@ -217,6 +245,7 @@
 
   <div id="stats" style="display:none">
     <h3>📊 Статистика</h3>
+    <div class="stats-row"><span class="label">Ник:</span><span class="value" id="stName">—</span></div>
     <div class="stats-row"><span class="label">Убийств:</span><span class="value" id="stKills">0</span></div>
     <div class="stats-row"><span class="label">Смертей:</span><span class="value" id="stDeaths">0</span></div>
     <div class="stats-row"><span class="label">K/D:</span><span class="value" id="stKD">0.00</span></div>
@@ -236,6 +265,23 @@
     <div class="armor-slot" id="armor-boots">Ботин</div>
   </div>
 
+  <!-- ═══ АВТОРИЗАЦИЯ ═══ -->
+  <div id="auth">
+    <div class="auth-panel">
+      <h1>SuleimanCraft</h1>
+      <div class="subtitle">Season <span id="authSeason">1</span></div>
+      <h3 id="authTitle" style="color:#fff;margin-bottom:16px;">Вход</h3>
+      <input id="authUsername" placeholder="Логин" maxlength="20" autocomplete="off">
+      <input id="authPassword" type="password" placeholder="Пароль" maxlength="50" autocomplete="off">
+      <input id="authNickname" placeholder="Игровой ник" maxlength="20" style="display:none" autocomplete="off">
+      <button id="authBtn">Войти</button>
+      <div id="authError"></div>
+      <div class="auth-switch" id="authSwitch">Нет аккаунта? Зарегистрироваться</div>
+      <div class="auth-info">v10.0 · Без БД · Вайп = новый сезон</div>
+    </div>
+  </div>
+
+  <!-- ═══ ИНВЕНТАРЬ ═══ -->
   <div id="inventory">
     <div class="inv-panel">
       <div class="inv-title">🎒 Инвентарь</div>
@@ -244,6 +290,7 @@
     </div>
   </div>
 
+  <!-- ═══ КРАФТ ═══ -->
   <div id="crafting">
     <div class="craft-panel">
       <div class="inv-title">⚒ Крафт</div>
@@ -252,21 +299,11 @@
     </div>
   </div>
 
+  <!-- ═══ СМЕРТЬ ═══ -->
   <div id="deathScreen">
     <h2>☠ ТЫ УМЕР ☠</h2>
     <p>Убит: <span id="killerName">—</span></p>
     <p class="respawn-timer">Респавн через <span id="respawnTime">2</span> сек</p>
-  </div>
-
-  <div id="overlay">
-    <h1>🎮 SuleimanCraft</h1>
-    <p>WASD — движение · Мышь — обзор</p>
-    <p>ЛКМ — атака / поставить блок · ПКМ — удалить блок</p>
-    <p>Пробел — прыжок · Shift — спуск</p>
-    <p>1-9 — выбор слота · T — чат</p>
-    <p>E — инвентарь · C — крафт</p>
-    <input type="text" id="nameInput" placeholder="Введи имя" maxlength="20" value="Player">
-    <button class="btn" id="startBtn">ИГРАТЬ</button>
   </div>
 
   <div id="toast"></div>
@@ -274,7 +311,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  SuleimanCraft — клиент v8.0 (PvP + HP + Food + Armor + Stats)
+//  SuleimanCraft — клиент v10.0
 // ═══════════════════════════════════════════════════════════════
 
 const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
@@ -304,12 +341,12 @@ const BLOCK_TYPES = [
   { name: 'Алмазная руда', color: 0x4AEDD9 },
 ];
 
-// Steve skin colors
-const STEVE_SKIN = 0xFFCC99;        // кожа
-const STEVE_HAIR = 0x3B1F0A;        // волосы
-const STEVE_SHIRT = 0x00A8A8;       // рубашка (бирюза)
-const STEVE_PANTS = 0x3333CC;       // штаны (синий)
-const STEVE_SHOES = 0x444444;       // обувь
+// Steve skin
+const STEVE_SKIN = 0xFFCC99;
+const STEVE_HAIR = 0x3B1F0A;
+const STEVE_SHIRT = 0x00A8A8;
+const STEVE_PANTS = 0x3333CC;
+const STEVE_SHOES = 0x444444;
 
 let WEAPON_INFO = {};
 let ARMOR_INFO = {};
@@ -320,12 +357,17 @@ let RECIPES = [];
 let scene, camera, renderer;
 let ws;
 let myId = null;
+let myToken = localStorage.getItem('sc_token') || null;
+let season = 1;
+
 let player = {
   pos: new THREE.Vector3(0, 15, 0),
   vel: new THREE.Vector3(),
   onGround: false,
   yaw: 0, pitch: 0,
   name: 'Player',
+  username: null,
+  role: 'player',
   hp: MAX_HP,
   food: MAX_FOOD,
   armor: {},
@@ -346,16 +388,13 @@ let craftOpen = false;
 let lastNetSend = 0;
 let maxPlayers = 100;
 let respawnPos = new THREE.Vector3(0, 15, 0);
-let mySteve = null;       // модель Стива для себя (3-е лицо)
-let thirdPerson = false;  // F5
+let mySteve = null;
+let thirdPerson = false;
 
 const world = new Map();
 const chunks = new Map();
 
-// ═══════════════════════════════════════════════════════════════
-//  ИНИЦИАЛИЗАЦИЯ
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ ИНИЦИАЛИЗАЦИЯ ═══
 function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
@@ -371,16 +410,16 @@ function init() {
 
   scene.add(new THREE.AmbientLight(0xffffff, 1.0));
 
-  // Модель Стива для себя (видна в 3-м лице)
   mySteve = createSteveModel(player.name);
   mySteve.visible = false;
   scene.add(mySteve);
 
-  buildHotbar();
-  renderHealth();
-  renderFood();
-  renderArmor();
-  renderStats();
+  // Авторизация
+  document.getElementById('authSwitch').onclick = toggleAuth;
+  document.getElementById('authBtn').onclick = authSubmit;
+  document.getElementById('authPassword').onkeydown = (e) => {
+    if (e.code === 'Enter') authSubmit();
+  };
 
   addEventListener('resize', onResize);
   addEventListener('keydown', onKeyDown);
@@ -392,19 +431,15 @@ function init() {
     mouseLocked = document.pointerLockElement === document.body;
   });
 
-  document.getElementById('startBtn').onclick = startGame;
+  connect();
   animate();
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  МОДЕЛЬ СТИВА (из кубиков)
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ МОДЕЛЬ СТИВА ═══
 function createSteveModel(nickname) {
   const group = new THREE.Group();
   group.userData = { nickname };
 
-  // Голова
   const head = new THREE.Mesh(
     new THREE.BoxGeometry(0.5, 0.5, 0.5),
     new THREE.MeshLambertMaterial({ color: STEVE_SKIN })
@@ -413,7 +448,6 @@ function createSteveModel(nickname) {
   head.userData = { part: 'head' };
   group.add(head);
 
-  // Волосы
   const hair = new THREE.Mesh(
     new THREE.BoxGeometry(0.52, 0.15, 0.52),
     new THREE.MeshLambertMaterial({ color: STEVE_HAIR })
@@ -421,7 +455,6 @@ function createSteveModel(nickname) {
   hair.position.y = 1.85;
   group.add(hair);
 
-  // Глаза
   const eyeMat = new THREE.MeshLambertMaterial({ color: 0x000000 });
   const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), eyeMat);
   eyeL.position.set(-0.12, 1.6, -0.26);
@@ -430,7 +463,6 @@ function createSteveModel(nickname) {
   eyeR.position.x = 0.12;
   group.add(eyeR);
 
-  // Тело
   const body = new THREE.Mesh(
     new THREE.BoxGeometry(0.5, 0.75, 0.25),
     new THREE.MeshLambertMaterial({ color: STEVE_SHIRT })
@@ -439,7 +471,6 @@ function createSteveModel(nickname) {
   body.userData = { part: 'body' };
   group.add(body);
 
-  // Руки
   const armL = new THREE.Mesh(
     new THREE.BoxGeometry(0.2, 0.75, 0.2),
     new THREE.MeshLambertMaterial({ color: STEVE_SKIN })
@@ -456,7 +487,6 @@ function createSteveModel(nickname) {
   armR.userData = { part: 'armR' };
   group.add(armR);
 
-  // Ноги
   const legL = new THREE.Mesh(
     new THREE.BoxGeometry(0.2, 0.75, 0.2),
     new THREE.MeshLambertMaterial({ color: STEVE_PANTS })
@@ -473,7 +503,6 @@ function createSteveModel(nickname) {
   legR.userData = { part: 'legR' };
   group.add(legR);
 
-  // Ботинки
   const shoeMat = new THREE.MeshLambertMaterial({ color: STEVE_SHOES });
   const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.22), shoeMat);
   shoeL.position.set(-0.15, -0.2, 0);
@@ -482,7 +511,6 @@ function createSteveModel(nickname) {
   shoeR.position.x = 0.15;
   group.add(shoeR);
 
-  // Ник над головой (спрайт)
   group.userData.nameSprite = createNameSprite(nickname);
   group.userData.nameSprite.position.y = 2.3;
   group.add(group.userData.nameSprite);
@@ -495,12 +523,8 @@ function createNameSprite(nickname) {
   canvas.width = 512;
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
-
-  // Фон
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.fillRect(0, 0, 512, 128);
-
-  // Текст
   ctx.fillStyle = '#FFFFFF';
   ctx.font = 'bold 56px "Minecraft", monospace';
   ctx.textAlign = 'center';
@@ -509,7 +533,6 @@ function createNameSprite(nickname) {
   ctx.lineWidth = 6;
   ctx.strokeText(nickname, 256, 64);
   ctx.fillText(nickname, 256, 64);
-
   const texture = new THREE.CanvasTexture(canvas);
   texture.magFilter = THREE.NearestFilter;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
@@ -531,19 +554,13 @@ function updateSteveName(model, nickname) {
   model.userData.nickname = nickname;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  АНИМАЦИЯ ХОДЬБЫ
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ АНИМАЦИЯ ХОДЬБЫ ═══
 let walkTime = 0;
-
 function animateSteve(model, dt, moving) {
   if (!model) return;
   if (moving) walkTime += dt * 8;
   else walkTime = 0;
-
   const swing = Math.sin(walkTime) * 0.6;
-
   for (const child of model.children) {
     const part = child.userData.part;
     if (part === 'armL') child.rotation.x = swing;
@@ -553,110 +570,68 @@ function animateSteve(model, dt, moving) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  БЛОКИ
-// ═══════════════════════════════════════════════════════════════
+// ═══ АВТОРИЗАЦИЯ UI ═══
+let isRegister = false;
 
-function addBlock(x, y, z, type) {
-  const k = `${x},${y},${z}`;
-  if (world.has(k)) return;
-  world.set(k, type);
-
-  const ck = `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)},${Math.floor(z / CHUNK_SIZE)}`;
-  if (!chunks.has(ck)) chunks.set(ck, { blocks: [] });
-  chunks.get(ck).blocks.push({ x, y, z, type });
-  updateChunk(ck);
+function toggleAuth() {
+  isRegister = !isRegister;
+  document.getElementById('authTitle').textContent = isRegister ? 'Регистрация' : 'Вход';
+  document.getElementById('authNickname').style.display = isRegister ? 'block' : 'none';
+  document.getElementById('authBtn').textContent = isRegister ? 'Создать аккаунт' : 'Войти';
+  document.getElementById('authSwitch').textContent = isRegister 
+    ? 'Уже есть аккаунт? Войти' 
+    : 'Нет аккаунта? Зарегистрироваться';
+  document.getElementById('authError').textContent = '';
 }
 
-function updateChunk(ck) {
-  const chunk = chunks.get(ck);
-  if (!chunk) return;
+function authSubmit() {
+  const username = document.getElementById('authUsername').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const nickname = document.getElementById('authNickname').value.trim();
 
-  const byType = {};
-  for (const b of chunk.blocks) {
-    if (!byType[b.type]) byType[b.type] = [];
-    byType[b.type].push(b);
+  if (!username || !password) {
+    document.getElementById('authError').textContent = 'Заполни логин и пароль';
+    return;
   }
 
-  if (chunk.meshes) {
-    for (const m of chunk.meshes) {
-      scene.remove(m);
-      m.geometry.dispose();
-      m.material.dispose();
-    }
-  }
-  chunk.meshes = [];
-
-  const dummy = new THREE.Object3D();
-  for (const [typeStr, blocks] of Object.entries(byType)) {
-    const type = parseInt(typeStr);
-    const color = BLOCK_TYPES[type]?.color || 0xffffff;
-    const mesh = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshLambertMaterial({
-        color,
-        transparent: type === 6 || type === 8,
-        opacity: type === 6 ? 0.7 : (type === 8 ? 0.6 : 1.0),
-      }),
-      blocks.length
-    );
-    mesh.frustumCulled = false;
-    for (let i = 0; i < blocks.length; i++) {
-      const b = blocks[i];
-      dummy.position.set(b.x + 0.5, b.y + 0.5, b.z + 0.5);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-    }
-    mesh.instanceMatrix.needsUpdate = true;
-    scene.add(mesh);
-    chunk.meshes.push(mesh);
+  if (isRegister && !nickname) {
+    document.getElementById('authError').textContent = 'Введи игровой ник';
+    return;
   }
 
-  document.getElementById('blocks').textContent = world.size;
+  const msg = isRegister
+    ? { type: 'register', username, password, nickname }
+    : { type: 'login', username, password };
+
+  send(msg);
 }
 
-function removeBlock(x, y, z) {
-  const k = `${x},${y},${z}`;
-  if (!world.has(k)) return;
-  world.delete(k);
-
-  const ck = `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)},${Math.floor(z / CHUNK_SIZE)}`;
-  const chunk = chunks.get(ck);
-  if (!chunk) return;
-
-  const idx = chunk.blocks.findIndex(b => b.x === x && b.y === y && b.z === z);
-  if (idx >= 0) chunk.blocks.splice(idx, 1);
-  updateChunk(ck);
+function hideAuth() {
+  document.getElementById('auth').style.display = 'none';
+  document.getElementById('crosshair').style.display = 'block';
+  document.getElementById('hud').style.display = 'block';
+  document.getElementById('hotbar').style.display = 'flex';
+  document.getElementById('chat').style.display = 'block';
+  document.getElementById('players').style.display = 'block';
+  document.getElementById('stats').style.display = 'block';
+  document.getElementById('leaderboard').style.display = 'block';
+  document.getElementById('armor-display').style.display = 'flex';
+  document.getElementById('bottom-bars').style.display = 'flex';
+  document.body.requestPointerLock();
 }
 
-let lastCull = 0;
-function updateCulling(now) {
-  if (now - lastCull < 200) return;
-  lastCull = now;
-
-  const px = player.pos.x, py = player.pos.y, pz = player.pos.z;
-  for (const [ck, chunk] of chunks) {
-    if (!chunk.meshes) continue;
-    const [cx, cy, cz] = ck.split(',').map(Number);
-    const cX = cx * CHUNK_SIZE + CHUNK_SIZE / 2;
-    const cY = cy * CHUNK_SIZE + CHUNK_SIZE / 2;
-    const cZ = cz * CHUNK_SIZE + CHUNK_SIZE / 2;
-    const dx = cX - px, dy = cY - py, dz = cZ - pz;
-    const inRange = dx*dx + dy*dy + dz*dz < RENDER_DISTANCE_SQ + CHUNK_SIZE * CHUNK_SIZE * 3;
-    for (const m of chunk.meshes) m.visible = inRange;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  СЕТЬ
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ СЕТЬ ═══
 function connect() {
   ws = new WebSocket(WS_URL);
+
   ws.onopen = () => {
     console.log('[WS] Connected');
-    ws.send(JSON.stringify({ type: 'set_name', name: player.name }));
+    // Пробуем авто-вход по токену
+    if (myToken) {
+      send({ type: 'auth_token', token: myToken });
+    }
   };
+
   ws.onmessage = (e) => handleServerMessage(JSON.parse(e.data));
   ws.onclose = () => showToast('Соединение потеряно');
   ws.onerror = (e) => { console.error('[WS] Error', e); showToast('Ошибка соединения'); };
@@ -671,6 +646,7 @@ function handleServerMessage(msg) {
     case 'init': {
       myId = msg.id;
       maxPlayers = msg.maxPlayers || 100;
+      season = msg.season || 1;
       WEAPON_INFO = msg.weaponTypes || {};
       ARMOR_INFO = msg.armorTypes || {};
       FOOD_INFO = msg.foodTypes || {};
@@ -678,10 +654,10 @@ function handleServerMessage(msg) {
       RECIPES = msg.recipes || [];
       respawnPos.set(msg.respawn.x, msg.respawn.y, msg.respawn.z);
       document.getElementById('maxPlayers').textContent = maxPlayers;
+      document.getElementById('season').textContent = season;
+      document.getElementById('authSeason').textContent = season;
 
       const entries = Object.entries(msg.world);
-      showToast(`Загрузка мира (${entries.length} блоков)...`);
-
       if (msg.chatHistory && msg.chatHistory.length) {
         const chat = document.getElementById('chat');
         chat.innerHTML = '';
@@ -698,7 +674,6 @@ function handleServerMessage(msg) {
           addBlock(x, y, z, type);
         }
         if (i < entries.length) requestAnimationFrame(loadBatch);
-        else showToast(`Мир загружен`);
       }
       loadBatch();
 
@@ -708,6 +683,32 @@ function handleServerMessage(msg) {
       }
       updatePlayerList();
       buildCraftList();
+      break;
+    }
+
+    case 'auth_ok': {
+      myToken = msg.token;
+      localStorage.setItem('sc_token', myToken);
+      player.username = msg.user.username;
+      player.name = msg.user.nickname;
+      player.role = msg.user.role;
+      
+      if (msg.stats) {
+        player.kills = msg.stats.kills || 0;
+        player.deaths = msg.stats.deaths || 0;
+      }
+
+      document.getElementById('stName').textContent = player.name;
+      hideAuth();
+      renderStats();
+      showToast(`Добро пожаловать, ${player.name}!`);
+      break;
+    }
+
+    case 'auth_error': {
+      document.getElementById('authError').textContent = msg.reason;
+      localStorage.removeItem('sc_token');
+      myToken = null;
       break;
     }
 
@@ -806,16 +807,17 @@ function handleServerMessage(msg) {
     case 'attack': {
       const rp = remotePlayers.get(msg.target);
       if (rp && rp.model) {
-        // Красная вспышка
+        const origColors = [];
         rp.model.children.forEach(c => {
-          if (c.material && c.material.color) c.material.color.setHex(0xff0000);
+          if (c.material && c.material.color) {
+            origColors.push({ mesh: c, color: c.material.color.getHex() });
+            c.material.color.setHex(0xff0000);
+          }
         });
         setTimeout(() => {
-          if (rp.model) {
-            rp.model.children.forEach(c => {
-              if (c.material && c.material.color) c.material.color.setHex(c.userData?.origColor || 0xffffff);
-            });
-          }
+          origColors.forEach(({ mesh, color }) => {
+            if (mesh.material) mesh.material.color.setHex(color);
+          });
         }, 150);
       }
       if (msg.target === myId) {
@@ -887,15 +889,13 @@ function handleServerMessage(msg) {
 
     case 'kick':
       alert(msg.reason);
+      localStorage.removeItem('sc_token');
       location.reload();
       break;
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  UI РЕНДЕР
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ РЕНДЕР UI ═══
 function renderHealth() {
   const el = document.getElementById('health');
   el.innerHTML = '';
@@ -906,7 +906,7 @@ function renderHealth() {
     heart.textContent = '❤';
     el.appendChild(heart);
   }
-}
+ }
 
 function renderFood() {
   const el = document.getElementById('food');
@@ -1064,7 +1064,8 @@ function renderLeaderboard(data) {
 
 function updatePlayerList() {
   document.getElementById('playerCount').textContent = 1 + remotePlayers.size;
-  let html = `<div class="name">${escapeHtml(player.name)} (ты) <span class="hp">${player.hp}HP</span></div>`;
+  const nameClass = player.role === 'admin' ? 'name admin' : 'name';
+  let html = `<div class="${nameClass}">${escapeHtml(player.name)} (ты) <span class="hp">${player.hp}HP</span></div>`;
   for (const rp of remotePlayers.values()) {
     html += `<div>${escapeHtml(rp.name)} <span class="hp">${rp.hp || MAX_HP}HP</span></div>`;
   }
@@ -1089,10 +1090,7 @@ function showToast(text) {
   showToast._t = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ЧАТ
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ ЧАТ ═══
 function renderChatMessage(msg) {
   const chat = document.getElementById('chat');
   const div = document.createElement('div');
@@ -1115,10 +1113,7 @@ function openChat() {
   inp.onkeydown = (e) => {
     if (e.code === 'Enter') {
       const text = inp.value.trim();
-      if (text) {
-        if (text.startsWith('/')) handleCommand(text);
-        else send({ type: 'chat', text });
-      }
+      if (text) send({ type: 'chat', text });
       closeChat();
     } else if (e.code === 'Escape') closeChat();
     e.stopPropagation();
@@ -1132,38 +1127,96 @@ function closeChat() {
   document.body.requestPointerLock();
 }
 
-function handleCommand(cmd) {
-  const parts = cmd.slice(1).split(' ');
-  const name = parts[0].toLowerCase();
-  switch (name) {
-    case 'help':
-      renderChatMessage({ name: 'SYSTEM', text: 'Команды: /help, /clear, /spawn, /list, /stats', timestamp: Date.now() });
-      break;
-    case 'clear':
-      document.getElementById('chat').innerHTML = '';
-      break;
-    case 'spawn':
-      player.pos.set(respawnPos.x, respawnPos.y, respawnPos.z);
-      player.vel.set(0, 0, 0);
-      break;
-    case 'list':
-      renderChatMessage({ name: 'SYSTEM', text: 'Игроков: ' + (1 + remotePlayers.size), timestamp: Date.now() });
-      break;
-    case 'stats':
-      renderChatMessage({ name: 'SYSTEM', text: `K: ${player.kills} / D: ${player.deaths} / HP: ${player.hp}`, timestamp: Date.now() });
-      break;
-    default:
-      renderChatMessage({ name: 'SYSTEM', text: 'Неизвестная команда: ' + name, timestamp: Date.now() });
+// ═══ БЛОКИ ═══
+function addBlock(x, y, z, type) {
+  const k = `${x},${y},${z}`;
+  if (world.has(k)) return;
+  world.set(k, type);
+
+  const ck = `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)},${Math.floor(z / CHUNK_SIZE)}`;
+  if (!chunks.has(ck)) chunks.set(ck, { blocks: [] });
+  chunks.get(ck).blocks.push({ x, y, z, type });
+  updateChunk(ck);
+}
+
+function updateChunk(ck) {
+  const chunk = chunks.get(ck);
+  if (!chunk) return;
+
+  const byType = {};
+  for (const b of chunk.blocks) {
+    if (!byType[b.type]) byType[b.type] = [];
+    byType[b.type].push(b);
+  }
+
+  if (chunk.meshes) {
+    for (const m of chunk.meshes) {
+      scene.remove(m);
+      m.geometry.dispose();
+      m.material.dispose();
+    }
+  }
+  chunk.meshes = [];
+
+  const dummy = new THREE.Object3D();
+  for (const [typeStr, blocks] of Object.entries(byType)) {
+    const type = parseInt(typeStr);
+    const color = BLOCK_TYPES[type]?.color || 0xffffff;
+    const mesh = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshLambertMaterial({
+        color,
+        transparent: type === 6 || type === 8,
+        opacity: type === 6 ? 0.7 : (type === 8 ? 0.6 : 1.0),
+      }),
+      blocks.length
+    );
+    mesh.frustumCulled = false;
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i];
+      dummy.position.set(b.x + 0.5, b.y + 0.5, b.z + 0.5);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    scene.add(mesh);
+    chunk.meshes.push(mesh);
+  }
+  document.getElementById('blocks').textContent = world.size;
+}
+
+function removeBlock(x, y, z) {
+  const k = `${x},${y},${z}`;
+  if (!world.has(k)) return;
+  world.delete(k);
+  const ck = `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)},${Math.floor(z / CHUNK_SIZE)}`;
+  const chunk = chunks.get(ck);
+  if (!chunk) return;
+  const idx = chunk.blocks.findIndex(b => b.x === x && b.y === y && b.z === z);
+  if (idx >= 0) chunk.blocks.splice(idx, 1);
+  updateChunk(ck);
+}
+
+let lastCull = 0;
+function updateCulling(now) {
+  if (now - lastCull < 200) return;
+  lastCull = now;
+  const px = player.pos.x, py = player.pos.y, pz = player.pos.z;
+  for (const [ck, chunk] of chunks) {
+    if (!chunk.meshes) continue;
+    const [cx, cy, cz] = ck.split(',').map(Number);
+    const cX = cx * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const cY = cy * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const cZ = cz * CHUNK_SIZE + CHUNK_SIZE / 2;
+    const dx = cX - px, dy = cY - py, dz = cZ - pz;
+    const inRange = dx*dx + dy*dy + dz*dz < RENDER_DISTANCE_SQ + CHUNK_SIZE * CHUNK_SIZE * 3;
+    for (const m of chunk.meshes) m.visible = inRange;
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ИГРОКИ (Стив)
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ REMOTE PLAYERS ═══
 function createRemotePlayer(id, data) {
   if (remotePlayers.has(id)) return;
-
   const model = createSteveModel(data.name || 'Player');
   model.position.set(data.x, data.y, data.z);
   model.rotation.y = data.yaw || 0;
@@ -1178,9 +1231,9 @@ function createRemotePlayer(id, data) {
     prevPos: new THREE.Vector3(data.x, data.y, data.z),
     yaw: data.yaw || 0,
     pitch: data.pitch || 0,
-    walkTime: 0,
   });
- }
+}
+
 function removeRemotePlayer(id) {
   const rp = remotePlayers.get(id);
   if (!rp) return;
@@ -1200,14 +1253,11 @@ function updateRemotePlayers(dt) {
   for (const rp of remotePlayers.values()) {
     rp.lerpPos.lerp(rp.targetPos, lerp);
     rp.model.position.set(rp.lerpPos.x, rp.lerpPos.y, rp.lerpPos.z);
-
-    // Плавный поворот к yaw
     let dyaw = rp.yaw - rp.model.rotation.y;
     while (dyaw > Math.PI) dyaw -= Math.PI * 2;
     while (dyaw < -Math.PI) dyaw += Math.PI * 2;
     rp.model.rotation.y += dyaw * Math.min(1, dt * 10);
 
-    // Проверка движения
     const dist = rp.lerpPos.distanceTo(rp.prevPos);
     const moving = dist > 0.01;
     animateSteve(rp.model, dt, moving);
@@ -1215,10 +1265,7 @@ function updateRemotePlayers(dt) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ФИЗИКА ИГРОКА
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ ФИЗИКА ═══
 function updatePlayer(dt) {
   player.vel.y -= 25 * dt;
 
@@ -1265,7 +1312,6 @@ function updatePlayer(dt) {
 
   // Камера
   if (thirdPerson) {
-    // 3-е лицо
     const back = new THREE.Vector3(
       Math.sin(player.yaw) * Math.cos(player.pitch),
       -Math.sin(player.pitch),
@@ -1274,17 +1320,13 @@ function updatePlayer(dt) {
     const camPos = player.pos.clone().add(back);
     camPos.y += 1.6;
     camera.position.copy(camPos);
-
     const lookAt = player.pos.clone();
     lookAt.y += 1.6;
     camera.lookAt(lookAt);
-
-    // Стив виден
     mySteve.visible = true;
     mySteve.position.copy(player.pos);
     mySteve.rotation.y = player.yaw + Math.PI;
   } else {
-    // 1-е лицо
     camera.position.copy(player.pos);
     camera.position.y += 1.6;
     const dir = new THREE.Vector3(
@@ -1309,21 +1351,7 @@ function checkCollision(pos) {
   return false;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ВВОД
-// ═══════════════════════════════════════════════════════════════
-
-function startGame() {
-  player.name = (document.getElementById('nameInput').value.trim() || 'Player').slice(0, 20);
-  document.getElementById('overlay').style.display = 'none';
-  ['crosshair', 'hud', 'hotbar', 'chat', 'players', 'stats', 'leaderboard', 'armor-display', 'bottom-bars'].forEach(id => {
-    document.getElementById(id).style.display = id === 'hotbar' ? 'flex' : (id === 'bottom-bars' ? 'flex' : 'block');
-  });
-  document.body.requestPointerLock();
-  connect();
-  updatePlayerList();
-}
-
+// ═══ ВВОД ═══
 function onKeyDown(e) {
   if (e.code === 'KeyT' && !chatOpen) { e.preventDefault(); openChat(); return; }
   if (chatOpen) return;
@@ -1371,13 +1399,13 @@ function onMouseMove(e) {
 function onMouseDown(e) {
   if (!mouseLocked || chatOpen || invOpen || craftOpen) return;
 
-  // Проверка на игрока (PvP)
   const ray = new THREE.Raycaster();
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
   ray.set(camera.position.clone(), dir);
   ray.far = 6;
 
+  // Проверка игроков (PvP)
   const playerMeshes = [];
   for (const rp of remotePlayers.values()) {
     rp.model.traverse(o => { if (o.isMesh) playerMeshes.push(o); });
@@ -1385,20 +1413,17 @@ function onMouseDown(e) {
   const playerHits = ray.intersectObjects(playerMeshes, true);
 
   if (playerHits.length > 0 && e.button === 0) {
-    // Нашли игрока — атака
     let hitMesh = playerHits[0].object;
     let parent = hitMesh;
     while (parent && !remotePlayers.has(parent.userData.id)) {
       parent = parent.parent;
     }
-    // Найти id
     for (const [id, rp] of remotePlayers.entries()) {
-      if (rp.model === parent || rp.model.children.includes(hitMesh) || hitMesh.parent === rp.model || hitMesh.parent?.parent === rp.model) {
+      if (rp.model === parent || hitMesh.parent === rp.model || hitMesh.parent?.parent === rp.model) {
         send({ type: 'attack', target: id });
         return;
       }
     }
-    // Fallback: ближайший игрок в радиусе
     let closest = null, closestDist = 6;
     for (const [id, rp] of remotePlayers.entries()) {
       const d = rp.model.position.distanceTo(camera.position);
@@ -1439,25 +1464,13 @@ function raycastBlocks(origin, dir) {
   return { point: hits[0].point, normal: hits[0].face.normal.clone() };
 }
 
-function buildHotbar() {
-  renderHotbar();
-}
-
-function selectBlock(i) {
-  selectedBlock = i;
-  renderHotbar();
-}
-
 function onResize() {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  ГЛАВНЫЙ ЦИКЛ
-// ═══════════════════════════════════════════════════════════════
-
+// ═══ ГЛАВНЫЙ ЦИКЛ ═══
 let lastTime = performance.now();
 let fpsCounter = 0, fpsTime = 0;
 
@@ -1467,17 +1480,16 @@ function animate() {
   const dt = Math.min((now - lastTime) / 1000, 0.1);
   lastTime = now;
 
-  if (!player.dead) updatePlayer(dt);
+  if (!player.dead && myId) updatePlayer(dt);
   updateRemotePlayers(dt);
   updateCulling(now);
 
-  // Анимация Стива (себя)
   if (mySteve.visible) {
     const moving = keys['KeyW'] || keys['KeyA'] || keys['KeyS'] || keys['KeyD'];
     animateSteve(mySteve, dt, moving);
   }
 
-  if (now - lastNetSend > 1000 / NETWORK_RATE) {
+  if (now - lastNetSend > 1000 / NETWORK_RATE && myId) {
     lastNetSend = now;
     send({
       type: 'move',
