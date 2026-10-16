@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { filterBadWords } = require('./badwords');
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 const VERSION = '8.0.0';
 const GAME_NAME = 'SuleimanCraft';
 const WORLD_SIZE = 16;
