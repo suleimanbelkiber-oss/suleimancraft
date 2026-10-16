@@ -2,10 +2,7 @@
  * SuleimanCraft — 3D online sandbox server.
  * Node.js + ws
  * Author: Suleiman
- * Version: 10.0.0
- *
- * Без БД. Аккаунты в памяти. Вайп при git push = новый сезон.
- * Админ: SuleimanPvP. Команды: /ban /unban /wipe /resetdata
+ * Version: 11.0.0
  */
 
 const WebSocket = require('ws');
@@ -17,7 +14,7 @@ const bcrypt = require('bcryptjs');
 const { filterBadWords } = require('./badwords');
 
 const PORT = process.env.PORT || 3001;
-const VERSION = '10.0.0';
+const VERSION = '11.0.0';
 const SEASON = 1;
 const GAME_NAME = 'SuleimanCraft';
 const WORLD_SIZE = 16;
@@ -30,13 +27,17 @@ const ATTACK_RANGE = 4;
 const ATTACK_COOLDOWN = 500;
 const FOOD_DECAY_INTERVAL = 30000;
 const PLAYER_INVENTORY_SIZE = 27;
-
-// Оптимизация
 const RATE_LIMIT = 20;
 const RATE_WINDOW = 1000;
 const BROADCAST_INTERVAL = 50;
 const NEARBY_RADIUS = 64;
 const NEARBY_RADIUS_SQ = NEARBY_RADIUS * NEARBY_RADIUS;
+
+// ═══ АДМИН-НИК ═══
+const ADMIN_NICKNAME = 'SuleimanPvP';
+function isAdminNickname(nickname) {
+  return String(nickname).trim() === ADMIN_NICKNAME;
+}
 
 // ═══ CHAT ═══
 let chatHistory = [];
@@ -47,10 +48,10 @@ function addChatMessage(name, text) {
   return msg;
 }
 
-// ═══ ACCOUNTS (в памяти) ═══
-const accounts = new Map();     // username -> user
-const sessions = new Map();     // token -> userId
-const bannedUsers = new Map();  // username -> { reason, bannedBy, bannedAt }
+// ═══ ACCOUNTS ═══
+const accounts = new Map();
+const sessions = new Map();
+const bannedUsers = new Map();
 let nextUserId = 1;
 
 function hashPassword(p) { return bcrypt.hashSync(p, 10); }
@@ -78,10 +79,8 @@ function unbanUser(username) {
 
 function resetUserData(user) {
   user.stats = {
-    kills: 0,
-    deaths: 0,
-    blocksPlaced: 0,
-    blocksBroken: 0,
+    kills: 0, deaths: 0,
+    blocksPlaced: 0, blocksBroken: 0,
     playtime: 0,
     createdAt: user.stats.createdAt,
     lastSeen: Date.now(),
@@ -98,6 +97,12 @@ function registerUser(username, password, nickname) {
   if (!nickname) return { error: 'Введи ник' };
   if (accounts.has(username)) return { error: 'Логин занят' };
 
+  for (const u of accounts.values()) {
+    if (u.nickname.toLowerCase() === nickname.toLowerCase()) {
+      return { error: 'Ник занят' };
+    }
+  }
+
   const { clean: cleanNick, found } = filterBadWords(nickname);
   if (found) nickname = cleanNick;
 
@@ -106,7 +111,7 @@ function registerUser(username, password, nickname) {
     username,
     passwordHash: hashPassword(password),
     nickname,
-    role: 'player',
+    role: isAdminNickname(nickname) ? 'admin' : 'player',
     stats: {
       kills: 0, deaths: 0,
       blocksPlaced: 0, blocksBroken: 0,
@@ -115,7 +120,13 @@ function registerUser(username, password, nickname) {
       lastSeen: Date.now(),
     },
   };
+
   accounts.set(username, user);
+
+  if (user.role === 'admin') {
+    console.log(`[${GAME_NAME}] 🔑 Admin registered: ${nickname}`);
+  }
+
   return { user };
 }
 
@@ -142,31 +153,6 @@ function getSession(token) {
   }
   return null;
 }
-
-// ═══ ADMIN ═══
-const ADMIN_USERNAME = 'suleimanpvp';
-const ADMIN_NICKNAME = 'SuleimanPvP';
-const ADMIN_PASSWORD = 'suleiman123';   // ← СМЕНИ!
-
-(function createAdmin() {
-  if (!accounts.has(ADMIN_USERNAME)) {
-    accounts.set(ADMIN_USERNAME, {
-      id: nextUserId++,
-      username: ADMIN_USERNAME,
-      passwordHash: hashPassword(ADMIN_PASSWORD),
-      nickname: ADMIN_NICKNAME,
-      role: 'admin',
-      stats: {
-        kills: 0, deaths: 0,
-        blocksPlaced: 0, blocksBroken: 0,
-        playtime: 0,
-        createdAt: Date.now(),
-        lastSeen: Date.now(),
-      },
-    });
-    console.log(`[${GAME_NAME}] Admin created: ${ADMIN_USERNAME}`);
-  }
-})();
 
 function isAdmin(player) {
   return player && player.role === 'admin';
@@ -196,7 +182,6 @@ const BLOCK_INFO = {
   13: { name: 'Алмазная руда', color: 0x4AEDD9 },
 };
 
-// ═══ WEAPONS ═══
 const WEAPON_INFO = {
   0: { name: 'Деревянный меч', color: 0x8B6F47, damage: 2 },
   1: { name: 'Каменный меч', color: 0x808080, damage: 3 },
@@ -205,7 +190,6 @@ const WEAPON_INFO = {
   4: { name: 'Алмазный меч', color: 0x4AEDD9, damage: 5 },
 };
 
-// ═══ ARMOR ═══
 const ARMOR_INFO = {
   0: { name: 'Кожаная', color: 0x8B6F47, defense: 1 },
   1: { name: 'Железная', color: 0xC0C0C0, defense: 2 },
@@ -214,7 +198,6 @@ const ARMOR_INFO = {
 };
 const ARMOR_SLOTS = ['helmet', 'chestplate', 'leggings', 'boots'];
 
-// ═══ FOOD ═══
 const FOOD_INFO = {
   0: { name: 'Яблоко', color: 0xFF4040, heal: 4 },
   1: { name: 'Хлеб', color: 0xD2A24A, heal: 5 },
@@ -222,7 +205,6 @@ const FOOD_INFO = {
   3: { name: 'Золотое яблоко', color: 0xFFD700, heal: 10 },
 };
 
-// ═══ MATERIALS ═══
 const MATERIAL_INFO = {
   0: { name: 'Палка', color: 0x8B6F47 },
   1: { name: 'Уголь', color: 0x222222 },
@@ -232,7 +214,6 @@ const MATERIAL_INFO = {
   5: { name: 'Пшеница', color: 0xD2A24A },
 };
 
-// ═══ RECIPES ═══
 const RECIPES = [
   { result: { type: 'block', id: 3, count: 1 }, ingredients: [{ type: 'material', id: 0, count: 1 }] },
   { result: { type: 'weapon', id: 0, count: 1 }, ingredients: [{ type: 'block', id: 3, count: 2 }, { type: 'material', id: 0, count: 1 }] },
@@ -336,9 +317,9 @@ const wss = new WebSocket.Server({
   maxPayload: 1024 * 64,
 });
 
-const clients = new Map();
-const players = new Map();
-const playerRates = new Map();
+const clients = new Map();       // ws -> playerId
+const players = new Map();       // playerId -> player
+const playerRates = new Map();   // playerId -> timestamps
 let nextId = 1;
 
 function makeEmptyInventory() {
@@ -451,6 +432,7 @@ wss.on('connection', (ws) => {
   ws.on('pong', () => { ws.isAlive = true; });
 });
 
+// Ping-pong
 const interval = setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.isAlive === false) return ws.terminate();
@@ -460,7 +442,7 @@ const interval = setInterval(() => {
 }, 30000);
 wss.on('close', () => clearInterval(interval));
 
-// ═══ FOOD / HP ═══
+// ═══ FOOD / HP TICK ═══
 setInterval(() => {
   const now = Date.now();
   for (const player of players.values()) {
@@ -558,7 +540,7 @@ function getLeaderboard() {
     .sort((a, b) => b.kills - a.kills)
     .slice(0, 10)
     .map(p => ({ name: p.name, kills: p.kills, deaths: p.deaths }));
-}
+      }
 
 // ═══ HANDLE MESSAGES ═══
 function handleMessage(ws, playerId, msg) {
@@ -599,6 +581,10 @@ function handleMessage(ws, playerId, msg) {
 
       broadcast({ type: 'player_update', player });
       broadcast({ type: 'chat', ...addChatMessage('SYSTEM', `${user.nickname} зарегистрировался`) });
+
+      if (user.role === 'admin') {
+        broadcast({ type: 'chat', ...addChatMessage('SYSTEM', `👑 ${user.nickname} — админ`) });
+      }
       break;
     }
 
@@ -675,26 +661,6 @@ function handleMessage(ws, playerId, msg) {
       break;
     }
 
-    // ═══ СМЕНА НИКА ═══
-    case 'set_name': {
-      if (!player.username) {
-        ws.send(JSON.stringify({ type: 'chat', name: 'SYSTEM', text: 'Сначала войди или зарегистрируйся', timestamp: Date.now() }));
-        return;
-      }
-      const oldName = player.name;
-      let name = String(msg.name || '').slice(0, 20).trim() || player.name;
-
-      const { clean, found } = filterBadWords(name);
-      if (found) name = clean;
-
-      player.name = name;
-      broadcast({ type: 'player_update', player });
-      if (oldName !== player.name) {
-        broadcast({ type: 'chat', ...addChatMessage('SYSTEM', `${oldName} теперь ${player.name}`) });
-      }
-      break;
-    }
-
     // ═══ ДВИЖЕНИЕ ═══
     case 'move': {
       player.x = +msg.x || 0;
@@ -719,6 +685,13 @@ function handleMessage(ws, playerId, msg) {
       if (!(block in BLOCK_INFO)) return;
       world.set(k, block);
       player.blocksPlaced = (player.blocksPlaced || 0) + 1;
+
+      if (player.userId) {
+        for (const u of accounts.values()) {
+          if (u.id === player.userId) { u.stats.blocksPlaced++; break; }
+        }
+      }
+
       broadcastNearby({ type: 'block_place', x, y, z, block }, x, y, z);
       break;
     }
@@ -731,6 +704,12 @@ function handleMessage(ws, playerId, msg) {
       world.delete(k);
       player.blocksBroken = (player.blocksBroken || 0) + 1;
 
+      if (player.userId) {
+        for (const u of accounts.values()) {
+          if (u.id === player.userId) { u.stats.blocksBroken++; break; }
+        }
+      }
+
       broadcastNearby({ type: 'block_remove', x, y, z }, x, y, z);
 
       if (type === BLOCK_TYPES.COAL_ORE) addInventoryItem(player, 'material', 1, 1);
@@ -740,7 +719,7 @@ function handleMessage(ws, playerId, msg) {
       break;
     }
 
-    // ═══ ЧАТ / АДМИН-КОМАНДЫ ═══
+    // ═══ ЧАТ + АДМИН-КОМАНДЫ ═══
     case 'chat': {
       const text = String(msg.text || '').slice(0, 200).trim();
       if (!text) return;
@@ -753,7 +732,6 @@ function handleMessage(ws, playerId, msg) {
 
         switch (cmd) {
 
-          // /ban <ник> [причина]
           case 'ban': {
             const targetName = args[0];
             const reason = args.slice(1).join(' ') || 'Без причины';
@@ -770,15 +748,13 @@ function handleMessage(ws, playerId, msg) {
                 targetWs.send(JSON.stringify({ type: 'kick', reason: `Забанен: ${reason}` }));
                 targetWs.close();
               }
-            } else if (args[0]) {
-              // Бан по логину
+            } else {
               banUser(args[0], reason, player.name);
               broadcast({ type: 'chat', ...addChatMessage('SYSTEM', `🔨 Логин ${args[0]} забанен. Причина: ${reason}`) });
             }
             break;
           }
 
-          // /unban <ник>
           case 'unban': {
             const targetName = args[0];
             if (!targetName) {
@@ -794,31 +770,26 @@ function handleMessage(ws, playerId, msg) {
             break;
           }
 
-          // /wipe — сброс всего
           case 'wipe': {
+            const adminUser = [...accounts.values()].find(u => u.role === 'admin');
             accounts.clear();
             sessions.clear();
             bannedUsers.clear();
             chatHistory = [];
             nextUserId = 1;
 
-            // Восстанавливаем админа
-            accounts.set(ADMIN_USERNAME, {
-              id: nextUserId++,
-              username: ADMIN_USERNAME,
-              passwordHash: hashPassword(ADMIN_PASSWORD),
-              nickname: ADMIN_NICKNAME,
-              role: 'admin',
-              stats: {
+            if (adminUser) {
+              adminUser.id = nextUserId++;
+              adminUser.stats = {
                 kills: 0, deaths: 0,
                 blocksPlaced: 0, blocksBroken: 0,
                 playtime: 0,
                 createdAt: Date.now(),
                 lastSeen: Date.now(),
-              },
-            });
+              };
+              accounts.set(adminUser.username, adminUser);
+            }
 
-            // Кикаем всех
             for (const [ws2] of clients) {
               ws2.send(JSON.stringify({ type: 'kick', reason: 'Сервер вайпнут. Новый сезон!' }));
               ws2.close();
@@ -827,7 +798,6 @@ function handleMessage(ws, playerId, msg) {
             break;
           }
 
-          // /resetdata <ник>
           case 'resetdata': {
             const targetName = args[0];
             if (!targetName) {
@@ -861,14 +831,14 @@ function handleMessage(ws, playerId, msg) {
           case 'help': {
             ws.send(JSON.stringify({
               type: 'chat', name: 'SYSTEM',
-              text: 'Админ: /ban /unban /wipe /resetdata',
+              text: 'Админ-команды: /ban /unban /wipe /resetdata /help',
               timestamp: Date.now(),
             }));
             break;
           }
 
           default:
-            ws.send(JSON.stringify({ type: 'chat', name: 'SYSTEM', text: 'Неизвестная админ-команда', timestamp: Date.now() }));
+            ws.send(JSON.stringify({ type: 'chat', name: 'SYSTEM', text: 'Неизвестная команда. /help', timestamp: Date.now() }));
         }
         return;
       }
@@ -884,7 +854,7 @@ function handleMessage(ws, playerId, msg) {
         ws.send(JSON.stringify({ type: 'chat_warning', text: 'Мат запрещён. Сообщение изменено.' }));
       }
       break;
-    }
+                             }
 
     // ═══ АТАКА ═══
     case 'attack': {
@@ -928,7 +898,6 @@ function handleMessage(ws, playerId, msg) {
         target.deaths++;
         player.kills++;
 
-        // Обновляем статы в аккаунтах
         if (player.userId) {
           for (const u of accounts.values()) {
             if (u.id === player.userId) { u.stats.kills++; break; }
@@ -1042,5 +1011,5 @@ process.on('SIGINT', () => {
 console.log(`[${GAME_NAME}] WebSocket ready on port ${PORT}`);
 console.log(`[${GAME_NAME}] Season: ${SEASON}`);
 console.log(`[${GAME_NAME}] Max players: ${MAX_PLAYERS}`);
-console.log(`[${GAME_NAME}] Admin: ${ADMIN_NICKNAME} (login: ${ADMIN_USERNAME})`);
+console.log(`[${GAME_NAME}] Admin nickname: ${ADMIN_NICKNAME}`);
 console.log(`[${GAME_NAME}] Ready!`);
