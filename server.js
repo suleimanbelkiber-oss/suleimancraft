@@ -16,8 +16,8 @@ const PORT = process.env.PORT || 3001;
 const VERSION = '12.0.0';
 const SEASON = 1;
 const GAME_NAME = 'SuleimanCraft';
-const WORLD_SIZE = 16;
-const MAX_PLAYERS = 100;
+const WORLD_SIZE = 128;
+const MAX_PLAYERS = 25;
 const MAX_CHAT_HISTORY = 50;
 const PLAYER_MAX_HP = 20;
 const PLAYER_MAX_FOOD = 20;
@@ -29,7 +29,7 @@ const PLAYER_INVENTORY_SIZE = 27;
 const RATE_LIMIT = 20;
 const RATE_WINDOW = 1000;
 const BROADCAST_INTERVAL = 50;
-const NEARBY_RADIUS = 64;
+const NEARBY_RADIUS = 32;
 const NEARBY_RADIUS_SQ = NEARBY_RADIUS * NEARBY_RADIUS;
 
 // ═══ АДМИН-НИК ═══
