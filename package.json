@@ -1,15 +1,12 @@
 {
   "name": "suleimancraft",
-  "version": "1.0.0",
-  "description": "SuleimanCraft — 3D online sandbox game",
+  "version": "10.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
-  "author": "Suleiman",
-  "license": "MIT",
   "dependencies": {
-    "ws": "^8.22.0"
+    "ws": "^8.18.0",
+    "bcryptjs": "^2.4.3"
   }
 }
