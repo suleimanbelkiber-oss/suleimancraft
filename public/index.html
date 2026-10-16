@@ -86,7 +86,9 @@
     justify-content: center; font-size: 9px; color: #fff;
     text-align: center; text-shadow: 1px 1px 0 #000; padding: 2px; }
   #auth { position: fixed; inset: 0; background: rgba(0,0,0,0.95);
-    display: flex; align-items: center; justify-content: center; z-index: 200; }
+    display: flex; align-items: center; justify-content: center; z-index: 200;
+    transition: opacity 0.3s; }
+  #auth.hidden { opacity: 0; pointer-events: none; }
   .auth-panel { background: #1a1a1a; border: 2px solid #444; border-radius: 12px;
     padding: 30px; width: 340px; text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,0.8); }
@@ -285,6 +287,7 @@ let ws;
 let myId = null;
 let myToken = localStorage.getItem('sc_token') || null;
 let season = 1;
+let gameStarted = false;
 
 let player = {
   pos: new THREE.Vector3(0, 15, 0),
@@ -349,6 +352,7 @@ function init() {
   addEventListener('mousedown', onMouseDown);
   addEventListener('contextmenu', e => e.preventDefault());
   document.addEventListener('pointerlockchange', () => {
+    if (!gameStarted) { mouseLocked = false; return; }
     mouseLocked = document.pointerLockElement === document.body;
   });
 
@@ -359,16 +363,13 @@ function init() {
 function createSteveModel(nickname) {
   const group = new THREE.Group();
   group.userData = { nickname };
-
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: STEVE_SKIN }));
   head.position.y = 1.55;
   head.userData = { part: 'head' };
   group.add(head);
-
   const hair = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.15, 0.52), new THREE.MeshLambertMaterial({ color: STEVE_HAIR }));
   hair.position.y = 1.85;
   group.add(hair);
-
   const eyeMat = new THREE.MeshLambertMaterial({ color: 0x000000 });
   const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), eyeMat);
   eyeL.position.set(-0.12, 1.6, -0.26);
@@ -376,32 +377,26 @@ function createSteveModel(nickname) {
   const eyeR = eyeL.clone();
   eyeR.position.x = 0.12;
   group.add(eyeR);
-
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.25), new THREE.MeshLambertMaterial({ color: STEVE_SHIRT }));
   body.position.y = 0.9;
   body.userData = { part: 'body' };
   group.add(body);
-
   const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.75, 0.2), new THREE.MeshLambertMaterial({ color: STEVE_SKIN }));
   armL.position.set(-0.35, 0.9, 0);
   armL.userData = { part: 'armL' };
   group.add(armL);
-
   const armR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.75, 0.2), new THREE.MeshLambertMaterial({ color: STEVE_SKIN }));
   armR.position.set(0.35, 0.9, 0);
   armR.userData = { part: 'armR' };
   group.add(armR);
-
   const legL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.75, 0.2), new THREE.MeshLambertMaterial({ color: STEVE_PANTS }));
   legL.position.set(-0.15, 0.15, 0);
   legL.userData = { part: 'legL' };
   group.add(legL);
-
   const legR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.75, 0.2), new THREE.MeshLambertMaterial({ color: STEVE_PANTS }));
   legR.position.set(0.15, 0.15, 0);
   legR.userData = { part: 'legR' };
   group.add(legR);
-
   const shoeMat = new THREE.MeshLambertMaterial({ color: STEVE_SHOES });
   const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.22), shoeMat);
   shoeL.position.set(-0.15, -0.2, 0);
@@ -409,11 +404,9 @@ function createSteveModel(nickname) {
   const shoeR = shoeL.clone();
   shoeR.position.x = 0.15;
   group.add(shoeR);
-
   group.userData.nameSprite = createNameSprite(nickname);
   group.userData.nameSprite.position.y = 2.3;
   group.add(group.userData.nameSprite);
-
   return group;
 }
 
@@ -454,7 +447,6 @@ function updateSteveName(model, nickname) {
 }
 
 let walkTime = 0;
-
 function animateSteve(model, dt, moving) {
   if (!model) return;
   if (moving) walkTime += dt * 8;
@@ -504,17 +496,22 @@ function authSubmit() {
 }
 
 function hideAuth() {
-  document.getElementById('auth').style.display = 'none';
-  document.getElementById('crosshair').style.display = 'block';
-  document.getElementById('hud').style.display = 'block';
-  document.getElementById('hotbar').style.display = 'flex';
-  document.getElementById('chat').style.display = 'block';
-  document.getElementById('players').style.display = 'block';
-  document.getElementById('stats').style.display = 'block';
-  document.getElementById('leaderboard').style.display = 'block';
-  document.getElementById('armor-display').style.display = 'flex';
-  document.getElementById('bottom-bars').style.display = 'flex';
-  document.body.requestPointerLock();
+  const auth = document.getElementById('auth');
+  auth.classList.add('hidden');
+  setTimeout(() => {
+    auth.style.display = 'none';
+    gameStarted = true;
+    document.getElementById('crosshair').style.display = 'block';
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('hotbar').style.display = 'flex';
+    document.getElementById('chat').style.display = 'block';
+    document.getElementById('players').style.display = 'block';
+    document.getElementById('stats').style.display = 'block';
+    document.getElementById('leaderboard').style.display = 'block';
+    document.getElementById('armor-display').style.display = 'flex';
+    document.getElementById('bottom-bars').style.display = 'flex';
+    document.body.requestPointerLock();
+  }, 300);
 }
 
 function connect() {
@@ -904,9 +901,9 @@ function renderInventory() {
     };
     grid.appendChild(slot);
   }
- }
+}
 
- function buildCraftList() {
+function buildCraftList() {
   const list = document.getElementById('craftList');
   list.innerHTML = '';
   RECIPES.forEach((recipe, index) => {
@@ -984,12 +981,10 @@ function renderChatMessage(msg) {
   div.className = 'msg';
   if (msg.name === player.name) div.classList.add('own');
   if (msg.name === 'SYSTEM' && msg.text && msg.text.includes('убит')) div.classList.add('death');
-
   const time = new Date(msg.timestamp || Date.now()).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   let nameClass = 'name';
   if (msg.name === 'SYSTEM') nameClass = 'name system';
   else if (msg.name === 'SuleimanPvP') nameClass = 'name admin';
-
   div.innerHTML = `<span class="${nameClass}">${escapeHtml(msg.name)}</span>${escapeHtml(msg.text)}<span class="time">${time}</span>`;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
@@ -1220,7 +1215,7 @@ function updatePlayer(dt) {
 
   document.getElementById('pos').textContent =
     `${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)}`;
-}
+ }
 
 function checkCollision(pos) {
   const halfW = 0.3, h = 1.8;
@@ -1232,6 +1227,7 @@ function checkCollision(pos) {
 }
 
 function onKeyDown(e) {
+  if (!gameStarted) return;
   if (e.code === 'KeyT' && !chatOpen) { e.preventDefault(); openChat(); return; }
   if (chatOpen) return;
 
@@ -1269,6 +1265,7 @@ function onKeyDown(e) {
 }
 
 function onMouseMove(e) {
+  if (!gameStarted) return;
   if (!mouseLocked || chatOpen || invOpen || craftOpen) return;
   player.yaw -= e.movementX * 0.002;
   player.pitch -= e.movementY * 0.002;
@@ -1276,6 +1273,7 @@ function onMouseMove(e) {
 }
 
 function onMouseDown(e) {
+  if (!gameStarted) return;
   if (!mouseLocked || chatOpen || invOpen || craftOpen) return;
 
   const ray = new THREE.Raycaster();
@@ -1353,7 +1351,7 @@ function animate() {
   const dt = Math.min((now - lastTime) / 1000, 0.1);
   lastTime = now;
 
-  if (!player.dead && myId) updatePlayer(dt);
+  if (gameStarted && !player.dead && myId) updatePlayer(dt);
   updateRemotePlayers(dt);
   updateCulling(now);
 
@@ -1362,7 +1360,7 @@ function animate() {
     animateSteve(mySteve, dt, moving);
   }
 
-  if (now - lastNetSend > 1000 / NETWORK_RATE && myId) {
+  if (gameStarted && now - lastNetSend > 1000 / NETWORK_RATE && myId) {
     lastNetSend = now;
     send({
       type: 'move',
@@ -1371,8 +1369,8 @@ function animate() {
     });
   }
 
-  if (Math.random() < 0.005) send({ type: 'ping', t: Date.now() });
-  if (Math.random() < 0.005) send({ type: 'leaderboard' });
+  if (gameStarted && Math.random() < 0.005) send({ type: 'ping', t: Date.now() });
+  if (gameStarted && Math.random() < 0.005) send({ type: 'leaderboard' });
 
   fpsCounter++; fpsTime += dt;
   if (fpsTime >= 1) {
