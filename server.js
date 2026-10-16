@@ -1,8 +1,7 @@
 /**
  * SuleimanCraft — 3D online sandbox server.
- * Node.js + ws
- * Author: Suleiman
- * Version: 11.0.0
+ * Version: 12.0.0
+ * Admin nickname: SuleimanPvP
  */
 
 const WebSocket = require('ws');
@@ -14,7 +13,7 @@ const bcrypt = require('bcryptjs');
 const { filterBadWords } = require('./badwords');
 
 const PORT = process.env.PORT || 3001;
-const VERSION = '11.0.0';
+const VERSION = '12.0.0';
 const SEASON = 1;
 const GAME_NAME = 'SuleimanCraft';
 const WORLD_SIZE = 16;
@@ -120,24 +119,19 @@ function registerUser(username, password, nickname) {
       lastSeen: Date.now(),
     },
   };
-
   accounts.set(username, user);
 
-  if (user.role === 'admin') {
-    console.log(`[${GAME_NAME}] 🔑 Admin registered: ${nickname}`);
-  }
+  if (user.role === 'admin') console.log(`[${GAME_NAME}] 🔑 Admin: ${nickname}`);
 
   return { user };
 }
 
 function loginUser(username, password) {
   username = String(username).toLowerCase().trim();
-
   if (isBanned(username)) {
     const info = bannedUsers.get(username);
     return { error: `Ты забанен. Причина: ${info.reason}` };
   }
-
   const user = accounts.get(username);
   if (!user) return { error: 'Неверный логин' };
   if (!verifyPassword(password, user.passwordHash)) return { error: 'Неверный пароль' };
@@ -317,18 +311,13 @@ const wss = new WebSocket.Server({
   maxPayload: 1024 * 64,
 });
 
-const clients = new Map();       // ws -> playerId
-const players = new Map();       // playerId -> player
-const playerRates = new Map();   // playerId -> timestamps
+const clients = new Map();
+const players = new Map();
+const playerRates = new Map();
 let nextId = 1;
 
-function makeEmptyInventory() {
-  return new Array(PLAYER_INVENTORY_SIZE).fill(null);
-}
-
-function makeEmptyArmor() {
-  return { helmet: null, chestplate: null, leggings: null, boots: null };
-}
+function makeEmptyInventory() { return new Array(PLAYER_INVENTORY_SIZE).fill(null); }
+function makeEmptyArmor() { return { helmet: null, chestplate: null, leggings: null, boots: null }; }
 
 function checkRate(playerId) {
   const now = Date.now();
@@ -570,11 +559,7 @@ function handleMessage(ws, playerId, msg) {
       ws.send(JSON.stringify({
         type: 'auth_ok',
         token,
-        user: {
-          username: user.username,
-          nickname: user.nickname,
-          role: user.role,
-        },
+        user: { username: user.username, nickname: user.nickname, role: user.role },
         stats: user.stats,
         season: SEASON,
       }));
@@ -613,11 +598,7 @@ function handleMessage(ws, playerId, msg) {
       ws.send(JSON.stringify({
         type: 'auth_ok',
         token,
-        user: {
-          username: user.username,
-          nickname: user.nickname,
-          role: user.role,
-        },
+        user: { username: user.username, nickname: user.nickname, role: user.role },
         stats: user.stats,
         season: SEASON,
       }));
@@ -627,7 +608,7 @@ function handleMessage(ws, playerId, msg) {
       break;
     }
 
-    // ═══ АВТО-ВХОД ПО ТОКЕНУ ═══
+    // ═══ АВТО-ВХОД ═══
     case 'auth_token': {
       const { token } = msg;
       const user = getSession(token);
@@ -648,11 +629,7 @@ function handleMessage(ws, playerId, msg) {
       ws.send(JSON.stringify({
         type: 'auth_ok',
         token,
-        user: {
-          username: user.username,
-          nickname: user.nickname,
-          role: user.role,
-        },
+        user: { username: user.username, nickname: user.nickname, role: user.role },
         stats: user.stats,
         season: SEASON,
       }));
@@ -712,10 +689,29 @@ function handleMessage(ws, playerId, msg) {
 
       broadcastNearby({ type: 'block_remove', x, y, z }, x, y, z);
 
-      if (type === BLOCK_TYPES.COAL_ORE) addInventoryItem(player, 'material', 1, 1);
-      if (type === BLOCK_TYPES.IRON_ORE) addInventoryItem(player, 'material', 2, 1);
-      if (type === BLOCK_TYPES.GOLD_ORE) addInventoryItem(player, 'material', 3, 1);
-      if (type === BLOCK_TYPES.DIAMOND_ORE) addInventoryItem(player, 'material', 4, 1);
+      // Дроп в инвентарь
+      let addedItem = null;
+      if (type === BLOCK_TYPES.COAL_ORE) { addInventoryItem(player, 'material', 1, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.IRON_ORE) { addInventoryItem(player, 'material', 2, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.GOLD_ORE) { addInventoryItem(player, 'material', 3, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.DIAMOND_ORE) { addInventoryItem(player, 'material', 4, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.GRASS) { addInventoryItem(player, 'block', 1, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.DIRT) { addInventoryItem(player, 'block', 1, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.STONE) { addInventoryItem(player, 'block', 2, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.WOOD) { addInventoryItem(player, 'block', 3, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.LEAVES) { addInventoryItem(player, 'block', 4, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.SAND) { addInventoryItem(player, 'block', 5, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.BRICK) { addInventoryItem(player, 'block', 7, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.GLASS) { addInventoryItem(player, 'block', 8, 1); addedItem = true; }
+      else if (type === BLOCK_TYPES.GOLD) { addInventoryItem(player, 'block', 9, 1); addedItem = true; }
+
+      if (addedItem) {
+        ws.send(JSON.stringify({
+          type: 'inventory_update',
+          id: playerId,
+          inventory: player.inventory,
+        }));
+      }
       break;
     }
 
@@ -724,14 +720,12 @@ function handleMessage(ws, playerId, msg) {
       const text = String(msg.text || '').slice(0, 200).trim();
       if (!text) return;
 
-      // Админ-команды
       if (text.startsWith('/') && isAdmin(player)) {
         const parts = text.slice(1).split(/\s+/);
         const cmd = parts[0].toLowerCase();
         const args = parts.slice(1);
 
         switch (cmd) {
-
           case 'ban': {
             const targetName = args[0];
             const reason = args.slice(1).join(' ') || 'Без причины';
@@ -843,7 +837,6 @@ function handleMessage(ws, playerId, msg) {
         return;
       }
 
-      // Обычный чат
       const { clean, found } = filterBadWords(text);
       if (clean.replace(/\*/g, '').trim() === '') {
         ws.send(JSON.stringify({ type: 'chat_warning', text: 'Сообщение отклонено (мат)' }));
@@ -854,7 +847,7 @@ function handleMessage(ws, playerId, msg) {
         ws.send(JSON.stringify({ type: 'chat_warning', text: 'Мат запрещён. Сообщение изменено.' }));
       }
       break;
-                             }
+      }
 
     // ═══ АТАКА ═══
     case 'attack': {
