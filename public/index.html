@@ -246,12 +246,11 @@ const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.ho
 const CHUNK_SIZE = 16;
 const RENDER_DISTANCE = 32;
 const RENDER_DISTANCE_SQ = RENDER_DISTANCE * RENDER_DISTANCE;
-const NETWORK_RATE = 3;
+const NETWORK_RATE = 15;
 const ATTACK_COOLDOWN = 500;
 const MAX_HP = 20;
 const MAX_FOOD = 20;
 const INV_SIZE = 27;
-const WALK_SPEED = 30;
 
 const BLOCK_TYPES = [
   { name: 'Трава', color: 0x4CAF50 },
@@ -762,7 +761,8 @@ function handleServerMessage(msg) {
       break;
 
     case 'pong':
-      document.getElementById('ping').textContent = Date.now() - msg.t;
+
+ document.getElementById('ping').textContent = Date.now() - msg.t;
       break;
 
     case 'craft_success':
@@ -1154,13 +1154,15 @@ function updatePlayer(dt) {
   if (keys['KeyD']) move.add(right);
   if (keys['KeyA']) move.sub(right);
 
+  const BASE_SPEED = 35;
   if (move.length() > 0) {
-    move.normalize().multiplyScalar(WALK_SPEED * dt);
-    player.vel.x = move.x;
-    player.vel.z = move.z;
+    move.normalize();
+    const speedMultiplier = 2.5;
+    player.vel.x = move.x * BASE_SPEED * dt * speedMultiplier;
+    player.vel.z = move.z * BASE_SPEED * dt * speedMultiplier;
   } else {
-    player.vel.x *= 0.8;
-    player.vel.z *= 0.8;
+    player.vel.x *= 0.7;
+    player.vel.z *= 0.7;
   }
 
   if (keys['Space'] && player.onGround) {
@@ -1168,23 +1170,34 @@ function updatePlayer(dt) {
     player.onGround = false;
   }
   if (keys['ShiftLeft']) {
-    player.vel.y = -6;
+    player.vel.y = -8;
     player.onGround = false;
   }
 
-  const np = player.pos.clone().addScaledVector(player.vel, dt);
+  const np = player.pos.clone().add(new THREE.Vector3(player.vel.x * dt, player.vel.y * dt, player.vel.z * dt));
   player.onGround = false;
+
   if (checkCollision(np)) {
     const tX = new THREE.Vector3(np.x, player.pos.y, player.pos.z);
     if (!checkCollision(tX)) player.pos.x = np.x; else player.vel.x = 0;
+
     const tZ = new THREE.Vector3(player.pos.x, player.pos.y, np.z);
     if (!checkCollision(tZ)) player.pos.z = np.z; else player.vel.z = 0;
+
     const tY = new THREE.Vector3(player.pos.x, np.y, player.pos.z);
     if (!checkCollision(tY)) player.pos.y = np.y;
-    else { if (player.vel.y < 0) player.onGround = true; player.vel.y = 0; }
-  } else player.pos.copy(np);
+    else {
+      if (player.vel.y < 0) player.onGround = true;
+      player.vel.y = 0;
+    }
+  } else {
+    player.pos.copy(np);
+  }
 
-  if (player.pos.y < -20) { player.pos.set(respawnPos.x, respawnPos.y, respawnPos.z); player.vel.set(0, 0, 0); }
+  if (player.pos.y < -20) {
+    player.pos.set(respawnPos.x, respawnPos.y, respawnPos.z);
+    player.vel.set(0, 0, 0);
+  }
 
   if (thirdPerson) {
     const back = new THREE.Vector3(
@@ -1215,7 +1228,7 @@ function updatePlayer(dt) {
 
   document.getElementById('pos').textContent =
     `${player.pos.x.toFixed(1)}, ${player.pos.y.toFixed(1)}, ${player.pos.z.toFixed(1)}`;
- }
+}
 
 function checkCollision(pos) {
   const halfW = 0.25, h = 1.75;
