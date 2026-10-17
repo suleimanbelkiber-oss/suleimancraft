@@ -1218,7 +1218,7 @@ function updatePlayer(dt) {
  }
 
 function checkCollision(pos) {
-  const halfW = 0.3, h = 1.8;
+  const halfW = 0.25, h = 1.75;
   for (let x = Math.floor(pos.x - halfW); x <= Math.floor(pos.x + halfW); x++)
     for (let y = Math.floor(pos.y); y <= Math.floor(pos.y + h); y++)
       for (let z = Math.floor(pos.z - halfW); z <= Math.floor(pos.z + halfW); z++)
